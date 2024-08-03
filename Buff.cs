@@ -43,7 +43,7 @@ public class Buff
     // You will need to expand this with your game's logic to handle each target value
     public void Apply(GameObject target)
     {
-        DomainController controller = target.GetComponent<DomainController>();
+        DomainControllerV2 controller = target.GetComponent<DomainControllerV2>();
         if (controller != null && AffectsPlayer)
         {
             // Apply buff based on type

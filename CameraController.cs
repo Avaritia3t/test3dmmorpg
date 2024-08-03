@@ -14,6 +14,19 @@ public class CameraController : MonoBehaviour
     void Start()
     {
         currentZoom = distance; // Ensures camera starts zoomed out as per 'distance' value.
+        // Automatically assign the player object if not set in the inspector
+        if (domain == null)
+        {
+            GameObject playerObject = GameObject.FindGameObjectWithTag("Player");
+            if (playerObject != null)
+            {
+                domain = playerObject.transform;
+            }
+            else
+            {
+                Debug.LogError("Player object not found. Ensure the player is tagged 'Player'.");
+            }
+        }
     }
 
     void Update()
