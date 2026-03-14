@@ -22,6 +22,11 @@ public class FactionSelectionManager : MonoBehaviour
     private Dictionary<string, string> factionDescriptions;
     private string selectedFactionName;
 
+    private IPlayerStatsService _playerStatsService;
+    private ICanvasTransitionService _canvasTransitionService;
+    private IPlayerStatsService PlayerStatsService => _playerStatsService ??= GameBootstrap.Locator?.Get<IPlayerStatsService>();
+    private ICanvasTransitionService CanvasTransitionService => _canvasTransitionService ??= GameBootstrap.Locator?.Get<ICanvasTransitionService>();
+
     void Start()
     {
         mainCamera = Camera.main;
@@ -207,11 +212,12 @@ public class FactionSelectionManager : MonoBehaviour
     {
         if (!string.IsNullOrEmpty(selectedFactionName))
         {
-            PlayerStatsManager.Instance.SetPlayerFaction(selectedFactionName);
+            if (PlayerStatsService != null)
+                PlayerStatsService.SetPlayerFaction(selectedFactionName);
             Debug.Log($"Faction '{selectedFactionName}' has been accepted.");
 
             // Notify the CanvasTransitionManager to move to the next stage
-            CanvasTransitionManager.Instance.OnFactionSelected();
+            CanvasTransitionService?.OnFactionSelected();
         }
         else
         {

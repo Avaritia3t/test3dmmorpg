@@ -3,6 +3,9 @@ using UnityEngine.SceneManagement;
 
 public class SetupSceneManager : MonoBehaviour
 {
+    private static ISceneTransitionService _sceneTransitionService;
+    private static ISceneTransitionService SceneTransitionService => _sceneTransitionService ??= GameBootstrap.Locator?.Get<ISceneTransitionService>();
+
     private void Start()
     {
         LoadSetupScene();
@@ -10,11 +13,8 @@ public class SetupSceneManager : MonoBehaviour
 
     private void LoadSetupScene()
     {
-        // Get the current scene name
         string currentScene = SceneManager.GetActiveScene().name;
-
-        // Get the spawn point from the SceneTransitionManager
-        Vector3 spawnPoint = SceneTransitionManager.Instance.GetSpawnPointForMap(currentScene);
+        Vector3 spawnPoint = SceneTransitionService != null ? SceneTransitionService.GetSpawnPointForMap(currentScene) : Vector3.zero;
 
         // Find the player object and set its position to the spawn point
         GameObject player = GameObject.FindGameObjectWithTag("Player");

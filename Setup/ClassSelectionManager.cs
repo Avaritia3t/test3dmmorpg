@@ -23,6 +23,11 @@ public class ClassSelectionManager : MonoBehaviour
 
     public string selectedClassName;
 
+    private IPlayerStatsService _playerStatsService;
+    private ICanvasTransitionService _canvasTransitionService;
+    private IPlayerStatsService PlayerStatsService => _playerStatsService ??= GameBootstrap.Locator?.Get<IPlayerStatsService>();
+    private ICanvasTransitionService CanvasTransitionService => _canvasTransitionService ??= GameBootstrap.Locator?.Get<ICanvasTransitionService>();
+
     void Start()
     {
         mainCamera = Camera.main;
@@ -209,11 +214,12 @@ public class ClassSelectionManager : MonoBehaviour
     {
         if (!string.IsNullOrEmpty(selectedClassName))
         {
-            PlayerStatsManager.Instance.SetPlayerClass(selectedClassName);
+            if (PlayerStatsService != null)
+                PlayerStatsService.SetPlayerClass(selectedClassName);
             Debug.Log($"Class '{selectedClassName}' has been accepted.");
 
             // Notify the CanvasTransitionManager to move to the next stage
-            CanvasTransitionManager.Instance.OnClassSelected();
+            CanvasTransitionService?.OnClassSelected();
         }
         else
         {

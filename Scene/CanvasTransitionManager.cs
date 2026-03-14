@@ -1,10 +1,8 @@
 using UnityEngine;
 using System.Collections;
 
-public class CanvasTransitionManager : MonoBehaviour
+public class CanvasTransitionManager : MonoBehaviour, ICanvasTransitionService
 {
-    public static CanvasTransitionManager Instance { get; private set; }
-
     public CanvasGroup loginCanvasGroup;
     public CanvasGroup backPageCanvasGroup;
     public CanvasGroup blackScreenCanvasGroup;
@@ -18,16 +16,7 @@ public class CanvasTransitionManager : MonoBehaviour
 
     private void Awake()
     {
-        // Implement the singleton pattern
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-        }
+        DontDestroyOnLoad(gameObject);
     }
 
     private void Start()

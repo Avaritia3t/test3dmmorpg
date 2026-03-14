@@ -12,13 +12,16 @@ public class AttackHandlerV2 : MonoBehaviour
     public SubdomainV2 npcController;
     public bool isAttacking = false;
 
+    private IPlayerStatsService _playerStatsService;
+    private IPlayerStatsService PlayerStatsService => _playerStatsService ??= GameBootstrap.Locator?.Get<IPlayerStatsService>();
+
     private void Start()
     {
         // Initialize with player stats by default
         playerController = GameObject.Find("PlayerObject")?.GetComponent<DomainControllerV3>();
-        if (playerController != null)
+        if (playerController != null && PlayerStatsService != null)
         {
-            var playerStats = PlayerStatsManager.Instance.playerStats;
+            var playerStats = PlayerStatsService.playerStats;
             attackSpeed = playerStats.attackSpeed;
             attackDamage = playerStats.currentDamage;
             attackRange = playerStats.attackRange;
@@ -30,11 +33,12 @@ public class AttackHandlerV2 : MonoBehaviour
         playerController = attacker.GetComponent<DomainControllerV3>();
         npcController = attacker.GetComponent<SubdomainV2>();
 
-        if (playerController != null)
+        if (playerController != null && PlayerStatsService != null)
         {
-            attackSpeed = PlayerStatsManager.Instance.playerStats.attackSpeed;
-            attackDamage = PlayerStatsManager.Instance.playerStats.currentDamage;
-            attackRange = PlayerStatsManager.Instance.playerStats.attackRange;
+            var ps = PlayerStatsService.playerStats;
+            attackSpeed = ps.attackSpeed;
+            attackDamage = ps.currentDamage;
+            attackRange = ps.attackRange;
             Debug.Log($"[Initialize] Player Attack Range: {attackRange}");
         }
         else if (npcController != null)
@@ -172,7 +176,8 @@ public class AttackHandlerV2 : MonoBehaviour
 
     private void ApplyEffects(GameObject target, GameObject attacker)
     {
-        var playerStats = PlayerStatsManager.Instance.playerStats;
+        if (PlayerStatsService == null) return;
+        var playerStats = PlayerStatsService.playerStats;
 
         // Apply Critical Hit
         if (Random.value < playerStats.criticalChance)

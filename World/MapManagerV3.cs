@@ -1,26 +1,19 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class MapManagerV3 : MonoBehaviour
+public class MapManagerV3 : MonoBehaviour, IMapService
 {
-    public static MapManagerV3 Instance { get; private set; }
-
     [SerializeField]
     private AllMapsDataV2 allMapsData; // Assign in the editor
 
     public MapDataV2 currentMap;
 
+    private IPlayerStatsService _playerStatsService;
+    private IPlayerStatsService PlayerStatsService => _playerStatsService ??= GameBootstrap.Locator?.Get<IPlayerStatsService>();
+
     private void Awake()
     {
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-        }
-        else
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
+        DontDestroyOnLoad(gameObject);
     }
 
     // Switch to a different map by ID
@@ -75,7 +68,8 @@ public class MapManagerV3 : MonoBehaviour
 
     private void ApplyBuff(DomainControllerV3 playerController, BuffV2 buff)
     {
-        var statProperties = PlayerStatsManager.Instance.GetStatProperties();
+        if (PlayerStatsService == null) return;
+        var statProperties = PlayerStatsService.GetStatProperties();
 
         if (statProperties.TryGetValue(buff.StatName, out var property))
         {

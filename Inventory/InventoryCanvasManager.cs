@@ -15,6 +15,9 @@ public class InventoryCanvasManager : MonoBehaviour
 
     public ItemSubtypeMenuManager itemSubtypeMenuManager;
 
+    private static ITooltipService _tooltipService;
+    private static ITooltipService TooltipService => _tooltipService ??= GameBootstrap.Locator?.Get<ITooltipService>();
+
     private void Awake()
     {
         if (Instance == null)
@@ -107,7 +110,7 @@ public class InventoryCanvasManager : MonoBehaviour
             // Ensure itemSubtypeMenu is hidden when closing inventory
             itemSubtypeMenuManager.SetSubtypeMenuActive(false);
             // Hide the tooltip when closing the inventory
-            TooltipManager.Instance.HideTooltip();
+            TooltipService?.HideTooltip();
         }
         Debug.Log("Inventory state toggled. isInventoryOpen: " + isInventoryOpen);
     }

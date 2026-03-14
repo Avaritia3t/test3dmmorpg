@@ -1,10 +1,8 @@
 using UnityEngine;
 using TMPro;
 
-public class TooltipManager : MonoBehaviour
+public class TooltipManager : MonoBehaviour, ITooltipService
 {
-    public static TooltipManager Instance { get; private set; }
-
     public Vector2 offset = new Vector2(50, 100); // Offset for TooltipBox position
 
     public GameObject tooltipPanel; // TooltipPanel object
@@ -13,33 +11,19 @@ public class TooltipManager : MonoBehaviour
 
     private void Awake()
     {
-        if (Instance == null)
+        DontDestroyOnLoad(gameObject);
+
+        if (tooltipPanel == null)
         {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-
-            // Ensure tooltipPanel is assigned
-            if (tooltipPanel == null)
-            {
-                Debug.LogError("TooltipPanel is not assigned in TooltipManager.");
-                return;
-            }
-
-            // Dynamically find and assign TooltipBox and TooltipText
-            tooltipBox = tooltipPanel.transform.Find("TooltipBox").gameObject;
-            tooltipText = tooltipBox.transform.Find("TooltipText").GetComponent<TMP_Text>();
-
-            // Ensure the found components are valid
-            if (tooltipBox == null || tooltipText == null)
-            {
-                Debug.LogError("TooltipBox or TooltipText could not be found within TooltipPanel.");
-            }
+            Debug.LogError("TooltipPanel is not assigned in TooltipManager.");
+            return;
         }
-        else
-        {
-            Debug.LogWarning("Multiple instances of TooltipManager detected. Destroying duplicate.");
-            Destroy(gameObject);
-        }
+
+        tooltipBox = tooltipPanel.transform.Find("TooltipBox").gameObject;
+        tooltipText = tooltipBox.transform.Find("TooltipText").GetComponent<TMP_Text>();
+
+        if (tooltipBox == null || tooltipText == null)
+            Debug.LogError("TooltipBox or TooltipText could not be found within TooltipPanel.");
     }
 
     private void Start()

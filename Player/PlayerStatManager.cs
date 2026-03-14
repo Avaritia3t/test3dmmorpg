@@ -2,25 +2,16 @@ using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
-public class PlayerStatsManager : MonoBehaviour
+public class PlayerStatsManager : MonoBehaviour, IPlayerStatsService
 {
-    public static PlayerStatsManager Instance { get; private set; }
     public PlayerStats playerStats;
     private Dictionary<string, PropertyInfo> statProperties;
 
     private void Awake()
     {
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-            playerStats = new PlayerStats();
-            InitializeStatProperties();
-        }
-        else
-        {
-            Destroy(gameObject);
-        }
+        DontDestroyOnLoad(gameObject);
+        playerStats = new PlayerStats();
+        InitializeStatProperties();
     }
 
     private void InitializeStatProperties()

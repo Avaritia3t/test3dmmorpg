@@ -5,8 +5,6 @@ using static UnityEngine.GraphicsBuffer;
 
 public class DomainControllerV3 : MonoBehaviour
 {
-    public static DomainControllerV3 Instance { get; private set; }
-
     private NavMeshAgent agent;
     public PlayerStatsManager playerStatsManager;
     public string factionName = "Heritage";
@@ -26,18 +24,17 @@ public class DomainControllerV3 : MonoBehaviour
     private float lastAttackTime = 0f;
     private bool isAttacking = false;
 
+    private IPlayerStatsService _playerStatsService;
+    private IAttackHandlerPool _attackHandlerPool;
+    private IMapService _mapService;
+    private IPlayerStatsService PlayerStatsService => _playerStatsService ??= GameBootstrap.Locator?.Get<IPlayerStatsService>();
+    private IAttackHandlerPool AttackHandlerPool => _attackHandlerPool ??= GameBootstrap.Locator?.Get<IAttackHandlerPool>();
+    private IMapService MapService => _mapService ??= GameBootstrap.Locator?.Get<IMapService>();
+
     private void Awake()
     {
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
-
-        Instance = this;
         DontDestroyOnLoad(gameObject);
 
-        // Debug.Log($"[Awake] Position: {transform.position}");
         agent = GetComponent<NavMeshAgent>();
         playerStatsManager = GetComponent<PlayerStatsManager>();
         playerhealthui = GameObject.Find("playerstatcanvas").GetComponent<twoplayerstatbarui>();
@@ -126,7 +123,7 @@ public class DomainControllerV3 : MonoBehaviour
 
     private void AutoAttackInRange()
     {
-        if (selectedTarget == null || PlayerStatsManager.Instance.playerStats.currentHP <= 0)
+        if (selectedTarget == null || PlayerStatsService == null || PlayerStatsService.playerStats.currentHP <= 0)
         {
             Debug.Log("[AutoAttackInRange] No valid target or player is dead. Stopping attack.");
             isAttacking = false;
@@ -148,7 +145,8 @@ public class DomainControllerV3 : MonoBehaviour
 
     private bool CheckAttackInterval()
     {
-        float attackSpeed = PlayerStatsManager.Instance.playerStats.attackSpeed;
+        if (PlayerStatsService == null) return false;
+        float attackSpeed = PlayerStatsService.playerStats.attackSpeed;
         float waitTime = 151.67f / attackSpeed - 0.0167f; // Attack speed formula
 
         if (Time.time - lastAttackTime >= waitTime)
@@ -171,10 +169,15 @@ public class DomainControllerV3 : MonoBehaviour
             return;
         }
 
+        if (AttackHandlerPool == null)
+        {
+            Debug.LogError("[PerformAttack] IAttackHandlerPool not found.");
+            return;
+        }
         if (attackHandler == null)
         {
             Debug.Log("[PerformAttack] Requesting a new AttackHandler.");
-            attackHandler = AttackHandlerPoolV2.Instance.RequestHandler();
+            attackHandler = AttackHandlerPool.RequestHandler();
             if (attackHandler == null)
             {
                 Debug.LogError("[PerformAttack] Failed to get AttackHandler from the pool. Exiting function.");
@@ -191,7 +194,7 @@ public class DomainControllerV3 : MonoBehaviour
 
         Debug.Log("[PerformAttack] Attack completed. Returning AttackHandler to the pool.");
         attackHandler.isAttacking = false;
-        AttackHandlerPoolV2.Instance.ReturnHandler(attackHandler);
+        AttackHandlerPool.ReturnHandler(attackHandler);
         attackHandler = null;
     }
 
@@ -199,23 +202,25 @@ public class DomainControllerV3 : MonoBehaviour
     {
         if (attackHandler != null)
         {
-            Debug.Log("[StopAttack] Returning AttackHandler to the pool.");
-            attackHandler.isAttacking = false;
-            AttackHandlerPoolV2.Instance.ReturnHandler(attackHandler);
+            if (AttackHandlerPool != null)
+            {
+                Debug.Log("[StopAttack] Returning AttackHandler to the pool.");
+                attackHandler.isAttacking = false;
+                AttackHandlerPool.ReturnHandler(attackHandler);
+            }
             attackHandler = null;
         }
     }
 
     private void InitializeAgent()
     {
-        var mapManager = MapManagerV3.Instance;
-        if (mapManager == null || mapManager.currentMap == null || mapManager.currentMap.spawnPoint == null)
+        if (MapService == null || MapService.currentMap == null)
         {
-            Debug.LogError("MapManager or currentMap or spawnPoint is null");
+            Debug.LogError("IMapService or currentMap is null");
             return;
         }
 
-        transform.position = mapManager.currentMap.spawnPoint;
+        transform.position = MapService.currentMap.spawnPoint;
     }
 
     private void ClickToMove()
@@ -245,7 +250,8 @@ public class DomainControllerV3 : MonoBehaviour
 
     public void TakeDamage(float hpDamage, float shieldDamage)
     {
-        var playerStats = PlayerStatsManager.Instance.playerStats;
+        if (PlayerStatsService == null) return;
+        var playerStats = PlayerStatsService.playerStats;
         lastAttackedTime = Time.time; // Update the last attacked time
 
         // Debug.Log($"DomainControllerV3 TakeDamage: Initial Shield = {playerStats.currentShield}, Initial HP = {playerStats.currentHP}");
@@ -295,7 +301,8 @@ public class DomainControllerV3 : MonoBehaviour
 
     private IEnumerator Regenerate()
     {
-        var playerStats = PlayerStatsManager.Instance.playerStats;
+        if (PlayerStatsService == null) yield break;
+        var playerStats = PlayerStatsService.playerStats;
 
         yield return new WaitForSeconds(playerStats.combatRegenDelay);
 
@@ -334,8 +341,11 @@ public class DomainControllerV3 : MonoBehaviour
     {
         if (!mapBuffsApplied)
         {
-            MapManagerV3.Instance.ApplyMapBuffs(gameObject);
-            mapBuffsApplied = true;
+            if (MapService != null)
+            {
+                MapService.ApplyMapBuffs(gameObject);
+                mapBuffsApplied = true;
+            }
         }
     }
 }

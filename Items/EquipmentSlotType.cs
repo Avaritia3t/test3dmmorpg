@@ -19,6 +19,9 @@ public class EquipmentSlot
     public int unlockedSlots;
     public List<Item> equippedItems;
 
+    private static IPlayerStatsService _playerStatsService;
+    private static IPlayerStatsService PlayerStatsService => _playerStatsService ??= GameBootstrap.Locator?.Get<IPlayerStatsService>();
+
     public EquipmentSlot(EquipmentSlotType type, int max, int unlocked)
     {
         slotType = type;
@@ -50,8 +53,10 @@ public class EquipmentSlot
 
     public void CalculateStatsFromEquipment()
     {
-        var playerStats = PlayerStatsManager.Instance.playerStats;
-        var statProperties = PlayerStatsManager.Instance.GetStatProperties();
+        if (PlayerStatsService == null) return;
+        var playerStats = PlayerStatsService.playerStats;
+        var statProperties = PlayerStatsService.GetStatProperties();
+        if (statProperties == null) return;
 
         // Reset all stats to their base values
         foreach (var property in statProperties.Values)
@@ -83,8 +88,10 @@ public class EquipmentSlot
 
     private string GetPlayerStatsSummary()
     {
-        var playerStats = PlayerStatsManager.Instance.playerStats;
-        var statProperties = PlayerStatsManager.Instance.GetStatProperties();
+        if (PlayerStatsService == null) return "";
+        var playerStats = PlayerStatsService.playerStats;
+        var statProperties = PlayerStatsService.GetStatProperties();
+        if (statProperties == null) return "";
         return string.Join(", ", statProperties.Keys.Select(statName => $"{statName}: {(float)statProperties[statName].GetValue(playerStats)}"));
     }
 

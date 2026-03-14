@@ -1,10 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class AttackHandlerPoolV2 : MonoBehaviour
+public class AttackHandlerPoolV2 : MonoBehaviour, IAttackHandlerPool
 {
-    public static AttackHandlerPoolV2 Instance { get; private set; }
-
     [SerializeField] private GameObject attackHandlerPrefab;
     [SerializeField] private int initialPoolSize = 10;
 
@@ -12,16 +10,7 @@ public class AttackHandlerPoolV2 : MonoBehaviour
 
     private void Awake()
     {
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-            InitializePool();
-        }
-        else
-        {
-            Destroy(gameObject);
-        }
+        DontDestroyOnLoad(gameObject);
     }
 
     public void InitializePool()

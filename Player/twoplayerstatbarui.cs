@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.UI;
 
 public class twoplayerstatbarui : MonoBehaviour
@@ -12,6 +12,9 @@ public class twoplayerstatbarui : MonoBehaviour
 
     private Transform target;
     private DomainControllerV3 playerController;
+
+    private IPlayerStatsService _playerStatsService;
+    private IPlayerStatsService PlayerStatsService => _playerStatsService ??= GameBootstrap.Locator?.Get<IPlayerStatsService>();
 
     void Awake()
     {
@@ -60,15 +63,14 @@ public class twoplayerstatbarui : MonoBehaviour
 
     void Start()
     {
-        // Debug.Log("Initializing Sliders, statbarui.");
-        if (PlayerStatsManager.Instance != null && PlayerStatsManager.Instance.playerStats != null)
+        if (PlayerStatsService != null && PlayerStatsService.playerStats != null)
         {
-            SetMaxHealth(PlayerStatsManager.Instance.playerStats.baseHP);
-            SetMaxShield(PlayerStatsManager.Instance.playerStats.baseShield);
+            SetMaxHealth(PlayerStatsService.playerStats.baseHP);
+            SetMaxShield(PlayerStatsService.playerStats.baseShield);
         }
         else
         {
-            Debug.Log("PlayerStatsManager or playerStats is null.");
+            Debug.Log("IPlayerStatsService or playerStats is null.");
         }
     }
 

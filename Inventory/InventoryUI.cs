@@ -34,6 +34,12 @@ public class InventoryUI : MonoBehaviour
     public TMP_Text itemDetailsText;
     public TMP_Text itemSubtextText;
 
+    private IInventoryService _inventoryService;
+    private IPlayerStatsService _playerStatsService;
+    private ITooltipService _tooltipService;
+    private IInventoryService InventoryService => _inventoryService ??= GameBootstrap.Locator?.Get<IInventoryService>();
+    private IPlayerStatsService PlayerStatsService => _playerStatsService ??= GameBootstrap.Locator?.Get<IPlayerStatsService>();
+    private ITooltipService TooltipService => _tooltipService ??= GameBootstrap.Locator?.Get<ITooltipService>();
 
     private void Start()
     {
@@ -153,13 +159,13 @@ public class InventoryUI : MonoBehaviour
         }
         else
         {
-            if (TooltipManager.Instance == null)
+            if (TooltipService == null)
             {
-                Debug.LogError("TooltipManager.Instance is null when trying to hide tooltip.");
+                Debug.LogError("ITooltipService is null when trying to hide tooltip.");
             }
             else
             {
-                TooltipManager.Instance.HideTooltip();
+                TooltipService.HideTooltip();
             }
             hideSubtypeMenu();
             Debug.Log("Inventory closed: Tooltip hidden and subtype menu hidden.");
@@ -205,13 +211,13 @@ public class InventoryUI : MonoBehaviour
         if (filteredResults.Count == 0)
         {
             ClearItemDetails();
-            if (TooltipManager.Instance == null)
+            if (TooltipService == null)
             {
-                Debug.LogError("TooltipManager.Instance is null when trying to hide tooltip in HandleHover.");
+                Debug.LogError("ITooltipService is null when trying to hide tooltip in HandleHover.");
             }
             else
             {
-                TooltipManager.Instance.HideTooltip();
+                TooltipService.HideTooltip();
             }
             return;
         }
@@ -225,7 +231,7 @@ public class InventoryUI : MonoBehaviour
             {
                 string itemName = hoveredObject.name.Replace("SlotImage", "");
                 string content = GetTooltipContent(itemName);
-                TooltipManager.Instance.ShowTooltip(content);
+                TooltipService.ShowTooltip(content);
 
                 if (Input.GetMouseButtonDown(0))
                 {
@@ -261,13 +267,13 @@ public class InventoryUI : MonoBehaviour
             }
         }
 
-        if (TooltipManager.Instance == null)
+        if (TooltipService == null)
         {
-            Debug.LogError("TooltipManager.Instance is null when trying to hide tooltip in HandleHover (final).");
+            Debug.LogError("ITooltipService is null when trying to hide tooltip in HandleHover (final).");
         }
         else
         {
-            TooltipManager.Instance.HideTooltip();
+            TooltipService.HideTooltip();
         }
     }
 
@@ -280,30 +286,32 @@ public class InventoryUI : MonoBehaviour
         RuneType runeType;
         string content = "";
 
+        if (InventoryService == null) return content;
+
         if (System.Enum.TryParse(itemName, out resourceType))
         {
-            int quantity = InventoryManager.Instance.GetResourceQuantity(resourceType);
+            int quantity = InventoryService.GetResourceQuantity(resourceType);
             content = $"{resourceType}\nQuantity: {quantity}";
         }
         else if (System.Enum.TryParse(itemName, out weaponType))
         {
-            int quantity = InventoryManager.Instance.GetItemQuantity(ItemType.Weapon, itemName);
+            int quantity = InventoryService.GetItemQuantity(ItemType.Weapon, itemName);
             content = $"{weaponType}\nQuantity: {quantity}";
         }
         else if (System.Enum.TryParse(itemName, out phalanxType))
         {
-            int quantity = InventoryManager.Instance.GetItemQuantity(ItemType.Phalanx, itemName);
+            int quantity = InventoryService.GetItemQuantity(ItemType.Phalanx, itemName);
             content = $"{phalanxType}\nQuantity: {quantity}";
         }
         else if (System.Enum.TryParse(itemName, out artefactType))
         {
-            int quantity = InventoryManager.Instance.GetItemQuantity(ItemType.Artefact, itemName);
+            int quantity = InventoryService.GetItemQuantity(ItemType.Artefact, itemName);
             content = $"{artefactType}\nQuantity: {quantity}";
         }
         else if (System.Enum.TryParse(itemName, out runeType))
         {
-            int quantity = InventoryManager.Instance.GetRuneQuantity(runeType);
-            float multiplier = InventoryManager.Instance.GetRuneMultiplier(runeType);
+            int quantity = InventoryService.GetRuneQuantity(runeType);
+            float multiplier = InventoryService.GetRuneMultiplier(runeType);
             content = $"{runeType}\nQuantity: {quantity}\nDamage Multiplier: x{multiplier}";
         }
         else
@@ -398,8 +406,10 @@ public class InventoryUI : MonoBehaviour
 
     private void PopulateItemSubtypeMenu(ItemType itemType, string subtype)
     {
+        if (InventoryService == null) return;
+
         Debug.Log("Inside PopulateItemSubtypeMenu function");
-        List<Item> items = InventoryManager.Instance.GetItemsBySubtype(itemType, subtype);
+        List<Item> items = InventoryService.GetItemsBySubtype(itemType, subtype);
 
         Debug.Log($"Found {items.Count} items of subtype {subtype}");
         foreach (var item in items)
@@ -551,10 +561,11 @@ public class InventoryUI : MonoBehaviour
         subtypeSlot.color = new Color(1, 1, 1, 0); // Set to transparent
 
         // Optionally, update item data in your inventory/equipment system
-        
-        // Remove item from inventory and apply its stats
-        InventoryManager.Instance.RemoveItem(item);
-        PlayerStatsManager.Instance.EquipItem(item);
+
+        if (InventoryService != null)
+            InventoryService.RemoveItem(item);
+        if (PlayerStatsService != null)
+            PlayerStatsService.EquipItem(item);
     }
 
     private void UnequipItem(Item item, GameObject equippedSlot)
@@ -598,9 +609,10 @@ public class InventoryUI : MonoBehaviour
         equippedIcon.sprite = null;
         equippedIcon.color = new Color(1, 1, 1, 0); // Set to transparent
 
-        // Return item to inventory and remove its stats
-        InventoryManager.Instance.AddItem(item);
-        PlayerStatsManager.Instance.UnequipItem(item);
+        if (InventoryService != null)
+            InventoryService.AddItem(item);
+        if (PlayerStatsService != null)
+            PlayerStatsService.UnequipItem(item);
 
         // Set the item as equippable again
         item.isEquippable = true;
@@ -662,7 +674,8 @@ public class InventoryUI : MonoBehaviour
             {
                 textElement.text = "Current Equipment:\n";
 
-                foreach (var slot in PlayerStatsManager.Instance.playerStats.equipmentSlots)
+                if (PlayerStatsService == null) break;
+                foreach (var slot in PlayerStatsService.playerStats.equipmentSlots)
                 {
                     foreach (var item in slot.equippedItems)
                     {
@@ -685,7 +698,8 @@ public class InventoryUI : MonoBehaviour
             {
                 textElement.text = "Player Stats:\n";
 
-                PlayerStats stats = PlayerStatsManager.Instance.playerStats;
+                if (PlayerStatsService == null) break;
+                PlayerStats stats = PlayerStatsService.playerStats;
 
                 textElement.text += $"HP: {stats.baseHP}, Shield: {stats.baseShield}, Attack Speed: {stats.attackSpeed}, Damage: {stats.currentDamage}\n";
 

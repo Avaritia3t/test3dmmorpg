@@ -16,23 +16,14 @@ public class DropRule
     }
 }
 
-public class DropRules : MonoBehaviour
+public class DropRules : MonoBehaviour, IDropRulesService
 {
-    public static DropRules Instance { get; private set; }
     public List<DropRule> dropRules;
 
     private void Awake()
     {
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
-
-        Instance = this;
         DontDestroyOnLoad(gameObject);
         InitializeDropRules();
-        // Debug.Log("DropRules instance initialized.");
     }
 
     private void InitializeDropRules()
@@ -53,7 +44,17 @@ public class DropRules : MonoBehaviour
         // Debug.Log("DropRules initialized with " + dropRules.Count + " rules.");
     }
 
+    private static IDropRulesService _dropRulesService;
+    private static IDropRulesService DropRulesService => _dropRulesService ??= GameBootstrap.Locator?.Get<IDropRulesService>();
+
     public static Item GenerateEmptyItem(ItemType itemType)
+    {
+        return DropRulesService?.GenerateEmptyItem(itemType);
+    }
+
+    public Item GenerateEmptyItem(ItemType itemType) => GenerateEmptyItemInstance(itemType);
+
+    private Item GenerateEmptyItemInstance(ItemType itemType)
     {
         switch (itemType)
         {

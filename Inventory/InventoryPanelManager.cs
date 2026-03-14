@@ -13,6 +13,11 @@ public class InventoryPanelManager : MonoBehaviour
     private bool isSubtypeMenuOpen = false;
     private ItemSubtypeMenuManager itemSubtypeMenuManager;
 
+    private IInventoryService _inventoryService;
+    private ITooltipService _tooltipService;
+    private IInventoryService InventoryService => _inventoryService ??= GameBootstrap.Locator?.Get<IInventoryService>();
+    private ITooltipService TooltipService => _tooltipService ??= GameBootstrap.Locator?.Get<ITooltipService>();
+
     private void Start()
     {
         // Dynamically assign the raycaster and eventSystem if they are not already assigned
@@ -81,7 +86,7 @@ public class InventoryPanelManager : MonoBehaviour
 
         if (filteredResults.Count == 0)
         {
-            TooltipManager.Instance.HideTooltip();
+            TooltipService?.HideTooltip();
             return;
         }
 
@@ -92,7 +97,7 @@ public class InventoryPanelManager : MonoBehaviour
             {
                 string itemName = hoveredObject.name.Replace("SlotImage", "");
                 string content = GetTooltipContent(itemName);
-                TooltipManager.Instance.ShowTooltip(content);
+                TooltipService?.ShowTooltip(content);
 
                 if (Input.GetMouseButtonDown(0))
                 {
@@ -128,7 +133,7 @@ public class InventoryPanelManager : MonoBehaviour
             }
         }
 
-        TooltipManager.Instance.HideTooltip();
+        TooltipService?.HideTooltip();
     }
 
     private string GetTooltipContent(string itemName)
@@ -140,30 +145,32 @@ public class InventoryPanelManager : MonoBehaviour
         RuneType runeType;
         string content = "";
 
+        if (InventoryService == null) return content;
+
         if (System.Enum.TryParse(itemName, out resourceType))
         {
-            int quantity = InventoryManager.Instance.GetResourceQuantity(resourceType);
+            int quantity = InventoryService.GetResourceQuantity(resourceType);
             content = $"{resourceType}\nQuantity: {quantity}";
         }
         else if (System.Enum.TryParse(itemName, out weaponType))
         {
-            int quantity = InventoryManager.Instance.GetItemQuantity(ItemType.Weapon, itemName);
+            int quantity = InventoryService.GetItemQuantity(ItemType.Weapon, itemName);
             content = $"{weaponType}\nQuantity: {quantity}";
         }
         else if (System.Enum.TryParse(itemName, out phalanxType))
         {
-            int quantity = InventoryManager.Instance.GetItemQuantity(ItemType.Phalanx, itemName);
+            int quantity = InventoryService.GetItemQuantity(ItemType.Phalanx, itemName);
             content = $"{phalanxType}\nQuantity: {quantity}";
         }
         else if (System.Enum.TryParse(itemName, out artefactType))
         {
-            int quantity = InventoryManager.Instance.GetItemQuantity(ItemType.Artefact, itemName);
+            int quantity = InventoryService.GetItemQuantity(ItemType.Artefact, itemName);
             content = $"{artefactType}\nQuantity: {quantity}";
         }
         else if (System.Enum.TryParse(itemName, out runeType))
         {
-            int quantity = InventoryManager.Instance.GetRuneQuantity(runeType);
-            float multiplier = InventoryManager.Instance.GetRuneMultiplier(runeType);
+            int quantity = InventoryService.GetRuneQuantity(runeType);
+            float multiplier = InventoryService.GetRuneMultiplier(runeType);
             content = $"{runeType}\nQuantity: {quantity}\nDamage Multiplier: x{multiplier}";
         }
         else
@@ -176,8 +183,10 @@ public class InventoryPanelManager : MonoBehaviour
 
     private void PopulateItemSubtypeMenu(ItemType itemType, string subtype)
     {
+        if (InventoryService == null) return;
+
         Debug.Log("Inside PopulateItemSubtypeMenu function");
-        List<Item> items = InventoryManager.Instance.GetItemsBySubtype(itemType, subtype);
+        List<Item> items = InventoryService.GetItemsBySubtype(itemType, subtype);
 
         Debug.Log($"Found {items.Count} items of subtype {subtype}");
         foreach (var item in items)

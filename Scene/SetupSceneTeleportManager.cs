@@ -7,6 +7,11 @@ public class SetupSceneTeleportManager : MonoBehaviour
     private bool playerInRange = false;
     private Transform player;
 
+    private IPlayerStatsService _playerStatsService;
+    private ISceneTransitionService _sceneTransitionService;
+    private IPlayerStatsService PlayerStatsService => _playerStatsService ??= GameBootstrap.Locator?.Get<IPlayerStatsService>();
+    private ISceneTransitionService SceneTransitionService => _sceneTransitionService ??= GameBootstrap.Locator?.Get<ISceneTransitionService>();
+
     private void Start()
     {
         // Find the player object (assuming it's tagged as "Player")
@@ -46,10 +51,11 @@ public class SetupSceneTeleportManager : MonoBehaviour
         if (player != null)
         {
             // Get the player's faction from the PlayerStatsManager
-            string playerFaction = PlayerStatsManager.Instance.playerStats.faction;
+            string playerFaction = PlayerStatsService?.playerStats?.faction;
+            if (string.IsNullOrEmpty(playerFaction)) return;
 
             // Use the SceneTransitionManager to load the appropriate scene based on the faction
-            SceneTransitionManager.Instance.LoadHomeSceneBasedOnFaction(playerFaction);
+            SceneTransitionService?.LoadHomeSceneBasedOnFaction(playerFaction);
         }
     }
 

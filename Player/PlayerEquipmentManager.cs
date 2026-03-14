@@ -3,40 +3,34 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 
-public class PlayerEquipmentManager : MonoBehaviour
+public class PlayerEquipmentManager : MonoBehaviour, IPlayerEquipmentService
 {
-    public static PlayerEquipmentManager Instance { get; private set; }
     public List<Item> equippedItems = new List<Item>();
-    public PlayerStats EquipmentStats { get; private set; } // New variable for equipment stats
+    public PlayerStats EquipmentStats { get; private set; }
     private Dictionary<string, PropertyInfo> statProperties;
 
+    private IPlayerStatsService _playerStatsService;
+    private IPlayerStatsService PlayerStatsService => _playerStatsService ??= GameBootstrap.Locator?.Get<IPlayerStatsService>();
 
     private void Awake()
     {
-        if (Instance == null)
-        {
-            Instance = this;
-            EquipmentStats = new PlayerStats();
-            DontDestroyOnLoad(gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-        }
+        EquipmentStats = new PlayerStats();
+        DontDestroyOnLoad(gameObject);
     }
 
     private void Start()
     {
         EquipmentStats = new PlayerStats();
         ResetEquipmentStats(); // Ensure all stats are set to zero
-        statProperties = PlayerStatsManager.Instance.GetStatProperties();
+        statProperties = PlayerStatsService?.GetStatProperties();
     }
 
     public void EquipItem(Item item)
     {
         Debug.Log($"Equipping item: {item.itemName}");
 
-        foreach (var slot in PlayerStatsManager.Instance.playerStats.equipmentSlots)
+        if (PlayerStatsService == null) return;
+        foreach (var slot in PlayerStatsService.playerStats.equipmentSlots)
         {
             if (slot.slotType.ToString() == item.itemType.ToString() && slot.EquipItem(item))
             {
@@ -49,7 +43,8 @@ public class PlayerEquipmentManager : MonoBehaviour
     {
         Debug.Log($"Unequipping item: {item.itemName}");
 
-        foreach (var slot in PlayerStatsManager.Instance.playerStats.equipmentSlots)
+        if (PlayerStatsService == null) return;
+        foreach (var slot in PlayerStatsService.playerStats.equipmentSlots)
         {
             if (slot.slotType.ToString() == item.itemType.ToString() && slot.UnequipItem(item))
             {
@@ -78,7 +73,9 @@ public class PlayerEquipmentManager : MonoBehaviour
 
     private void ResetEquipmentStats()
     {
-        var statProperties = PlayerStatsManager.Instance.GetStatProperties();
+        if (PlayerStatsService == null) return;
+        statProperties = PlayerStatsService.GetStatProperties();
+        if (statProperties == null) return;
 
         foreach (var property in statProperties.Values)
         {
@@ -91,12 +88,13 @@ public class PlayerEquipmentManager : MonoBehaviour
 
     private void AddStatToEquipmentStats(ItemStat stat)
     {
+        if (PlayerStatsService == null || statProperties == null) return;
         if (statProperties.TryGetValue(stat.statName, out var property))
         {
             float currentEquipmentValue = (float)property.GetValue(EquipmentStats);
-            float currentPlayerValue = (float)property.GetValue(PlayerStatsManager.Instance.playerStats);
+            float currentPlayerValue = (float)property.GetValue(PlayerStatsService.playerStats);
             property.SetValue(EquipmentStats, currentEquipmentValue + stat.statValue);
-            property.SetValue(PlayerStatsManager.Instance.playerStats, currentPlayerValue + stat.statValue);
+            property.SetValue(PlayerStatsService.playerStats, currentPlayerValue + stat.statValue);
             Debug.Log($"Equipment stat updated: {stat.statName}, New Equipment Value: {currentEquipmentValue + stat.statValue}, New Player Value: {currentPlayerValue + stat.statValue}");
         }
         else
@@ -107,14 +105,15 @@ public class PlayerEquipmentManager : MonoBehaviour
 
     private void RemoveStatFromEquipmentStats(ItemStat stat)
     {
+        if (PlayerStatsService == null || statProperties == null) return;
         if (statProperties.TryGetValue(stat.statName, out var property))
         {
             float currentEquipmentValue = (float)property.GetValue(EquipmentStats);
-            float currentPlayerValue = (float)property.GetValue(PlayerStatsManager.Instance.playerStats);
+            float currentPlayerValue = (float)property.GetValue(PlayerStatsService.playerStats);
             float newEquipmentValue = currentEquipmentValue - stat.statValue;
             float newPlayerValue = currentPlayerValue - stat.statValue;
             property.SetValue(EquipmentStats, newEquipmentValue);
-            property.SetValue(PlayerStatsManager.Instance.playerStats, newPlayerValue);
+            property.SetValue(PlayerStatsService.playerStats, newPlayerValue);
             Debug.Log($"Removing stat: {stat.statName}, New Equipment Value: {newEquipmentValue}, New Player Value: {newPlayerValue}");
         }
         else
@@ -125,16 +124,19 @@ public class PlayerEquipmentManager : MonoBehaviour
 
     private string GetPlayerStatsSummary()
     {
-        var playerStats = PlayerStatsManager.Instance.playerStats;
-        var statProperties = PlayerStatsManager.Instance.GetStatProperties();
-        return string.Join(", ", statProperties.Keys.Select(statName => $"{statName}: {(float)statProperties[statName].GetValue(playerStats)}"));
+        if (PlayerStatsService == null) return "";
+        var stats = PlayerStatsService.playerStats;
+        var props = PlayerStatsService.GetStatProperties();
+        if (props == null) return "";
+        return string.Join(", ", props.Keys.Select(statName => $"{statName}: {(float)props[statName].GetValue(stats)}"));
     }
 
     public void LogPlayerEquipment()
     {
         Debug.Log("Logging Player Equipment:");
 
-        var equipmentSlots = PlayerStatsManager.Instance.playerStats.equipmentSlots;
+        if (PlayerStatsService == null) return;
+        var equipmentSlots = PlayerStatsService.playerStats.equipmentSlots;
 
         foreach (var slot in equipmentSlots)
         {

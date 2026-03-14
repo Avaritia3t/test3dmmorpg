@@ -21,6 +21,12 @@ public class ItemSubtypeMenuManager : MonoBehaviour
 
     public EquipmentPanelManager equipmentPanelManager;
 
+    private IInventoryService _inventoryService;
+    private IPlayerEquipmentService _playerEquipmentService;
+    private ITooltipService _tooltipService;
+    private IInventoryService InventoryService => _inventoryService ??= GameBootstrap.Locator?.Get<IInventoryService>();
+    private IPlayerEquipmentService PlayerEquipmentService => _playerEquipmentService ??= GameBootstrap.Locator?.Get<IPlayerEquipmentService>();
+    private ITooltipService TooltipService => _tooltipService ??= GameBootstrap.Locator?.Get<ITooltipService>();
 
     private void Start()
     {
@@ -106,12 +112,12 @@ public class ItemSubtypeMenuManager : MonoBehaviour
             if (hoveredItems.Count > 0)
             {
                 string content = "[" + string.Join(", ", hoveredItems) + "]";
-                TooltipManager.Instance.ShowTooltip(content);
+                TooltipService?.ShowTooltip(content);
                 return;
             }
         }
 
-        TooltipManager.Instance.HideTooltip();
+        TooltipService?.HideTooltip();
     }
 
     private Item GetItemFromSlot(GameObject slot)
@@ -158,7 +164,8 @@ public class ItemSubtypeMenuManager : MonoBehaviour
             {
                 int index = subtypeSlotIconImages.IndexOf(clickedObject.GetComponent<Image>());
 
-                if (index >= 0 && index < InventoryManager.Instance.playerItems.Count)
+                if (InventoryService == null) return;
+                if (index >= 0 && index < InventoryService.GetItems().Count)
                 {
                     Item item = GetItemFromSlot(clickedObject);
 
@@ -166,8 +173,8 @@ public class ItemSubtypeMenuManager : MonoBehaviour
                     {
                         Debug.Log($"Item to equip: {item.itemName}");
 
-                        InventoryManager.Instance.RemoveItem(item);
-                        PlayerEquipmentManager.Instance.EquipItem(item);
+                        inventory.RemoveItem(item);
+                        PlayerEquipmentService?.EquipItem(item);
 
                         // Call EquipItem in EquipmentPanelManager
                         equipmentPanelManager.EquipItem(item);
@@ -175,10 +182,10 @@ public class ItemSubtypeMenuManager : MonoBehaviour
                         UpdateUIOnRightClick(clickedObject, item);
 
                         // Calculate and update equipment stats
-                        PlayerEquipmentManager.Instance.CalculateStatsAdditionFromEquipment(item);
+                        PlayerEquipmentService?.CalculateStatsAdditionFromEquipment(item);
 
                         // Update the DisplaySubtypes to reflect the current state
-                        DisplaySubtypes(InventoryManager.Instance.GetItemsBySubtype(item.itemType, item.subtype));
+                        DisplaySubtypes(InventoryService.GetItemsBySubtype(item.itemType, item.subtype));
                     }
                     else
                     {
@@ -216,7 +223,7 @@ public class ItemSubtypeMenuManager : MonoBehaviour
             {
                 int index = subtypeSlotIconImages.IndexOf(clickedObject.GetComponent<Image>());
 
-                if (index >= 0 && index < InventoryManager.Instance.playerItems.Count)
+                if (InventoryService != null && index >= 0 && index < InventoryService.GetItems().Count)
                 {
                     Item item = GetItemFromSlot(clickedObject);
 
@@ -362,7 +369,7 @@ public class ItemSubtypeMenuManager : MonoBehaviour
 
         if (isActive)
         {
-            TooltipManager.Instance.HideTooltip(); // Hide tooltip when the subtype menu is opened
+            TooltipService?.HideTooltip(); // Hide tooltip when the subtype menu is opened
         }
         else
         {

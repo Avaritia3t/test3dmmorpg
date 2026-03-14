@@ -53,6 +53,15 @@ public class SubdomainV2 : MonoBehaviour
 
     private bool isGeneratingItemsAndResources = false;
 
+    private IInventoryService _inventoryService;
+    private IDropRulesService _dropRulesService;
+    private IAttackHandlerPool _attackHandlerPool;
+    private IPlayerStatsService _playerStatsService;
+    private IInventoryService InventoryService => _inventoryService ??= GameBootstrap.Locator?.Get<IInventoryService>();
+    private IDropRulesService DropRulesService => _dropRulesService ??= GameBootstrap.Locator?.Get<IDropRulesService>();
+    private IAttackHandlerPool AttackHandlerPool => _attackHandlerPool ??= GameBootstrap.Locator?.Get<IAttackHandlerPool>();
+    private IPlayerStatsService PlayerStatsService => _playerStatsService ??= GameBootstrap.Locator?.Get<IPlayerStatsService>();
+
     public enum SubdomainState
     {
         Idle,
@@ -159,12 +168,17 @@ public class SubdomainV2 : MonoBehaviour
 
     private void InitializeResourcesAndItems()
     {
-        DropRule rule = DropRules.Instance.dropRules.Find(r => r.subdomainType == type);
+        if (DropRulesService == null)
+        {
+            Debug.LogError("IDropRulesService not found. Ensure GameBootstrap runs and DropRules is in the scene.");
+            return;
+        }
+        DropRule rule = DropRulesService.dropRules.Find(r => r.subdomainType == type);
 
         if (rule != null)
         {
             InitializeResources(rule);
-            InitializeItems(rule); // Assuming `level` is the subdomain's level
+            InitializeItems(rule, DropRulesService);
         }
         else
         {
@@ -181,14 +195,14 @@ public class SubdomainV2 : MonoBehaviour
         }
     }
 
-    private void InitializeItems(DropRule rule)
+    private void InitializeItems(DropRule rule, IDropRulesService dropRulesService)
     {
         availableItems = new List<Item>();
         spawnedItems = new List<Item>();
 
         foreach (var itemType in rule.allowedItemTypes)
         {
-            Item newItem = DropRules.GenerateEmptyItem(itemType);
+            Item newItem = dropRulesService.GenerateEmptyItem(itemType);
 
             if (newItem != null)
             {
@@ -252,7 +266,8 @@ public class SubdomainV2 : MonoBehaviour
 
     private void GenerateItems()
     {
-        DropRule rule = DropRules.Instance.dropRules.Find(r => r.subdomainType == type);
+        if (DropRulesService == null) return;
+        DropRule rule = DropRulesService.dropRules.Find(r => r.subdomainType == type);
 
         if (rule != null)
         {
@@ -439,8 +454,11 @@ public class SubdomainV2 : MonoBehaviour
     {
         if (attackHandler != null)
         {
-            attackHandler.isAttacking = false;
-            AttackHandlerPoolV2.Instance.ReturnHandler(attackHandler);
+            if (AttackHandlerPool != null)
+            {
+                attackHandler.isAttacking = false;
+                AttackHandlerPool.ReturnHandler(attackHandler);
+            }
             attackHandler = null;
             Debug.Log("[ReleaseAttackHandler] AttackHandler released and returned to pool.");
         }
@@ -468,10 +486,11 @@ public class SubdomainV2 : MonoBehaviour
 
     private void Aggravate()
     {
-        if (attackHandler == null)
+        if (attackHandler == null && AttackHandlerPool != null)
         {
-            attackHandler = AttackHandlerPoolV2.Instance.RequestHandler();
-            attackHandler.Initialize(this.gameObject, lastAttacker);
+            attackHandler = AttackHandlerPool.RequestHandler();
+            if (attackHandler != null)
+                attackHandler.Initialize(this.gameObject, lastAttacker);
         }
 
         StartCoroutine(AggravateCoroutine());
@@ -501,10 +520,12 @@ public class SubdomainV2 : MonoBehaviour
 
     private void Retaliate(GameObject attacker)
     {
+        if (AttackHandlerPool == null) return;
+
         // Ensure attackHandler is initialized
         if (attackHandler == null)
         {
-            attackHandler = AttackHandlerPoolV2.Instance.RequestHandler();
+            attackHandler = AttackHandlerPool.RequestHandler();
             if (attackHandler == null)
             {
                 Debug.LogError("[Retaliate] Failed to get AttackHandler from the pool. Exiting Retaliate.");
@@ -530,7 +551,7 @@ public class SubdomainV2 : MonoBehaviour
 
         // If the target's HP is 0, do nothing
         DomainControllerV3 playerController = attackHandler.attackTarget.GetComponent<DomainControllerV3>();
-        if (playerController != null && PlayerStatsManager.Instance.playerStats.currentHP <= 0)
+        if (playerController != null && PlayerStatsService != null && PlayerStatsService.playerStats.currentHP <= 0)
         {
             attackHandler.isAttacking = false;
             ReleaseAttackHandler();
@@ -540,13 +561,15 @@ public class SubdomainV2 : MonoBehaviour
         // If the target is alive and in range, attack
         if (attackHandler == null)
         {
-            attackHandler = AttackHandlerPoolV2.Instance.RequestHandler();
+            attackHandler = AttackHandlerPool.RequestHandler();
         }
 
-        attackHandler.Initialize(this.gameObject, attackHandler.attackTarget);
-        attackHandler.AttemptAttack(this.gameObject);
-
-        lastAttackTime = Time.time; // Update last attack time after a successful attack
+        if (attackHandler != null)
+        {
+            attackHandler.Initialize(this.gameObject, attackHandler.attackTarget);
+            attackHandler.AttemptAttack(this.gameObject);
+            lastAttackTime = Time.time; // Update last attack time after a successful attack
+        }
 
         ReleaseAttackHandler();
     }
@@ -557,7 +580,8 @@ public class SubdomainV2 : MonoBehaviour
         currentShield = 0;
 
         TransferResourcesAndItemsToPlayer();
-        PlayerStatsManager.Instance.AddExperience(CalculateExpReward());
+        if (PlayerStatsService != null)
+            PlayerStatsService.AddExperience(CalculateExpReward());
 
         currentState = SubdomainState.Regenerating;
         ReleaseAttackHandler();
@@ -611,16 +635,18 @@ public class SubdomainV2 : MonoBehaviour
 
     private void TransferResourcesAndItemsToPlayer()
     {
+        if (InventoryService == null) return;
+
         foreach (var resource in resources)
         {
-            InventoryManager.Instance.AddResource(resource);
+            InventoryService.AddResource(resource);
             resource.quantity = 0; // Set quantity to zero after transfer
         }
 
         List<Item> itemsToRemove = new List<Item>();
         foreach (var item in spawnedItems)
         {
-            InventoryManager.Instance.AddItem(item);
+            InventoryService.AddItem(item);
             itemsToRemove.Add(item); // Add item to the list of items to remove
         }
 

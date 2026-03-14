@@ -19,6 +19,9 @@ public class HUDCanvas : MonoBehaviour
 
     private Dictionary<string, TMP_Text> statTextMap;
 
+    private IPlayerStatsService _playerStatsService;
+    private IPlayerStatsService PlayerStatsService => _playerStatsService ??= GameBootstrap.Locator?.Get<IPlayerStatsService>();
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -50,16 +53,16 @@ public class HUDCanvas : MonoBehaviour
 
     private void Update()
     {
-        if (PlayerStatsManager.Instance == null)
+        if (PlayerStatsService == null)
         {
-            Debug.LogWarning("PlayerStatsManager.Instance is null.");
+            Debug.LogWarning("IPlayerStatsService is null.");
             return;
         }
 
-        var playerStats = PlayerStatsManager.Instance.playerStats;
+        var playerStats = PlayerStatsService.playerStats;
         if (playerStats == null)
         {
-            Debug.LogWarning("PlayerStatsManager.Instance.playerStats is null.");
+            Debug.LogWarning("playerStats is null.");
             return;
         }
 

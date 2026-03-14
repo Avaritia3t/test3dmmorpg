@@ -25,6 +25,12 @@ public class EquipmentPanelManager : MonoBehaviour
     private Dictionary<GameObject, Item> slotToItemMap = new Dictionary<GameObject, Item>();
     public ItemSubtypeMenuManager itemSubtypeMenuManager;
 
+    private IInventoryService _inventoryService;
+    private IPlayerStatsService _playerStatsService;
+    private IPlayerEquipmentService _playerEquipmentService;
+    private IInventoryService InventoryService => _inventoryService ??= GameBootstrap.Locator?.Get<IInventoryService>();
+    private IPlayerStatsService PlayerStatsService => _playerStatsService ??= GameBootstrap.Locator?.Get<IPlayerStatsService>();
+    private IPlayerEquipmentService PlayerEquipmentService => _playerEquipmentService ??= GameBootstrap.Locator?.Get<IPlayerEquipmentService>();
 
     private void Start()
     {
@@ -92,18 +98,20 @@ public class EquipmentPanelManager : MonoBehaviour
                 if (item != null)
                 {
                     Debug.Log($"Item to unequip: {item.itemName}");
-                    
-                    InventoryManager.Instance.AddItem(item);
-                    PlayerEquipmentManager.Instance.UnequipItem(item);
+
+                    if (InventoryService != null)
+                        InventoryService.AddItem(item);
+                    PlayerEquipmentService?.UnequipItem(item);
 
                     // Remove from the Equipment UI
                     UpdateUIOnRightClick(clickedObject, item);
 
                     // Calculate and update equipment stats
-                    PlayerEquipmentManager.Instance.CalculateStatsReductionFromEquipment(item);
+                    PlayerEquipmentService?.CalculateStatsReductionFromEquipment(item);
 
                     // Update the DisplaySubtypes to reflect the current state
-                    itemSubtypeMenuManager.DisplaySubtypes(InventoryManager.Instance.GetItemsBySubtype(item.itemType, item.subtype));
+                    if (InventoryService != null)
+                        itemSubtypeMenuManager.DisplaySubtypes(InventoryService.GetItemsBySubtype(item.itemType, item.subtype));
                 }
             }
         }
@@ -249,13 +257,15 @@ public class EquipmentPanelManager : MonoBehaviour
 
     private void PopulateSubtypeMenu(Item item)
     {
-        List<Item> items = InventoryManager.Instance.GetItemsBySubtype(item.itemType, item.subtype);
+        if (InventoryService == null) return;
+        List<Item> items = InventoryService.GetItemsBySubtype(item.itemType, item.subtype);
         itemSubtypeMenuManager.DisplaySubtypes(items);
     }
 
     private void UpdatePlayerStatsReadout()
     {
-        var playerStats = PlayerStatsManager.Instance.playerStats;
+        if (PlayerStatsService == null) return;
+        var playerStats = PlayerStatsService.playerStats;
         if (playerStatsReadoutText != null)
         {
             playerStatsReadoutText.text = FormatPlayerStats(playerStats);

@@ -2,10 +2,8 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-public class InventoryManager : MonoBehaviour
+public class InventoryManager : MonoBehaviour, IInventoryService
 {
-    public static InventoryManager Instance { get; private set; }
-
     public List<Resource> playerResources; // List to store player's resources
     public List<Item> playerItems; // List to store player's items
     public List<Item> equippedItems; // List to store player's equipped items
@@ -13,13 +11,6 @@ public class InventoryManager : MonoBehaviour
 
     private void Awake()
     {
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
-
-        Instance = this;
         DontDestroyOnLoad(gameObject);
         playerResources = new List<Resource>();
         playerItems = new List<Item>();

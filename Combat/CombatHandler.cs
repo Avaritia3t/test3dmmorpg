@@ -1,17 +1,7 @@
 using UnityEngine;
 
-public class CombatHandler : MonoBehaviour
+public class CombatHandler : MonoBehaviour, ICombatService
 {
-    public static CombatHandler Instance;
-
-    private void Awake()
-    {
-        if (Instance == null)
-            Instance = this;
-        else
-            Destroy(gameObject);
-    }
-
     // Method to manage and resolve an attack from one unit to another
     public void ProcessAttack(GameObject attacker, GameObject target)
     {

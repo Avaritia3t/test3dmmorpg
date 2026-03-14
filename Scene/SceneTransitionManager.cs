@@ -2,21 +2,11 @@ using System.Linq;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-public class SceneTransitionManager : MonoBehaviour
+public class SceneTransitionManager : MonoBehaviour, ISceneTransitionService
 {
-    public static SceneTransitionManager Instance { get; private set; }
-
     private void Awake()
     {
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-        }
+        DontDestroyOnLoad(gameObject);
     }
 
     public void LoadHomeSceneBasedOnFaction(string faction)

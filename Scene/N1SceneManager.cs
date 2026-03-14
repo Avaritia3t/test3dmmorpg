@@ -3,6 +3,11 @@ using UnityEngine.AI;
 
 public class N1SceneManager : MonoBehaviour
 {
+    private IMapService _mapService;
+    private IAttackHandlerPool _attackHandlerPool;
+    private IMapService MapService => _mapService ??= GameBootstrap.Locator?.Get<IMapService>();
+    private IAttackHandlerPool AttackHandlerPool => _attackHandlerPool ??= GameBootstrap.Locator?.Get<IAttackHandlerPool>();
+
     void Start()
     {
         InitializeScene();
@@ -12,11 +17,14 @@ public class N1SceneManager : MonoBehaviour
     {
         Debug.Log("Initializing N1 Scene...");
 
-        // Switch to the N1 map
-        MapManagerV3.Instance.SwitchMap("N1");
+        if (MapService == null)
+        {
+            Debug.LogError("IMapService not found.");
+            return;
+        }
+        MapService.SwitchMap("N1");
 
-        // Ensure the map data is correctly loaded
-        MapDataV2 mapData = MapManagerV3.Instance.currentMap;
+        MapDataV2 mapData = MapService.currentMap;
         if (mapData != null)
         {
             Debug.Log($"N1 map data loaded: {mapData.mapID}");
@@ -27,24 +35,24 @@ public class N1SceneManager : MonoBehaviour
             Debug.LogError("N1 map data could not be loaded.");
         }
 
-        // Ensure the AttackHandler pool is initialized
-        if (AttackHandlerPoolV2.Instance != null)
+        if (AttackHandlerPool != null)
         {
-            AttackHandlerPoolV2.Instance.InitializePool();
+            AttackHandlerPool.InitializePool();
             Debug.Log("AttackHandlerPool initialized for N1 Scene.");
         }
         else
         {
-            Debug.LogError("AttackHandlerPoolV2 instance not found.");
+            Debug.LogError("IAttackHandlerPool not found.");
         }
     }
 
     private void SetPlayerSpawnPoint(Vector3 spawnPoint)
     {
-        if (DomainControllerV3.Instance != null)
+        var playerObj = GameObject.FindGameObjectWithTag("Player");
+        if (playerObj != null)
         {
-            var player = DomainControllerV3.Instance.gameObject;
-            NavMeshAgent agent = DomainControllerV3.Instance.GetComponent<NavMeshAgent>();
+            var player = playerObj;
+            NavMeshAgent agent = playerObj.GetComponent<NavMeshAgent>();
 
             // Attempt to find the NavMesh Y position at the given X and Z coordinates
             Vector3 navMeshPoint = new Vector3(spawnPoint.x, spawnPoint.y + 200f, spawnPoint.z); // Start the raycast from above the spawn point
