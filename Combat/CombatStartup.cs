@@ -11,5 +11,9 @@ public static class CombatStartup
         var pool = Object.FindObjectOfType<AttackHandlerPoolV2>();
         if (pool != null)
             locator.Register<IAttackHandlerPool>(pool);
+
+        var networkedPool = Object.FindObjectOfType<NetworkedAttackHandlerPool>();
+        if (networkedPool != null)
+            locator.Register<INetworkedAttackHandlerPool>(networkedPool);
     }
 }
