@@ -13,12 +13,15 @@ First-line network rewrite targets, duplicated and renamed to the **Networked<Co
 | `Scene/N1SceneManager.cs` | `NetworkedN1SceneController.cs` |
 | (new) | `NetworkedPlayerCombatHelperController.cs` |
 | (new) | `NetworkedAttackHandlerController.cs`, `NetworkedAttackHandlerPool.cs`, `INetworkedAttackHandlerPool.cs` |
+| (new) | `SubdomainItemGenerator.cs` |
 
 **Notes:**
 
 - `NetworkedSubdomainController` uses `SubdomainV2Type` and `SubdomainState` from `World/SubdomainV2.cs` (not duplicated).
 - Cross-references within this folder use the Networked* types (e.g. `NetworkedMapController` expects `NetworkedDomainController` on the player).
 - **Attack handler:** `Combat/AttackHandlerV2.cs` is unchanged (local stack). The Networked stack uses `NetworkedAttackHandlerController` and `INetworkedAttackHandlerPool`; CombatStartup auto-registers the pool when present. Networked scene controllers initialize it.
+- **Subdomain stats:** Use `RollAndApplySubdomainStats()` for local roll; use `ApplySubdomainStatsFromServer(level, type)` for server-authoritative sync. `CreateSubdomainStats()` still exists and calls `RollAndApplySubdomainStats()`.
+- **SubdomainItemGenerator:** Add to the same GameObject as `NetworkedSubdomainController`; it handles item creation and stat assignment so the subdomain focuses on state, combat, and resources.
 - **Scene setup (Networked):** Add a GameObject with `NetworkedAttackHandlerPool`; assign a prefab that has only `NetworkedAttackHandlerController` to its `attackHandlerPrefab` field.
 - To use `NetworkedMapController` as `IMapService`, register it in the locator (e.g. a Networked-specific startup or scene setup).
 - **Player setup:** Add both `NetworkedDomainController` and `NetworkedPlayerCombatHelperController` to the player GameObject when using the Networked stack.

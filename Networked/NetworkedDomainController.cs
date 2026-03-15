@@ -170,6 +170,13 @@ public class NetworkedDomainController : MonoBehaviour
         // Debug.Log("Raycast did not hit the BaseTerrain layer.");
     }
 
+    /// <summary>Returns this player's current HP for aggro/target checks (e.g. subdomain retaliation).</summary>
+    public float GetCurrentHP()
+    {
+        if (PlayerStatsService == null) return 0f;
+        return PlayerStatsService.playerStats.currentHP;
+    }
+
     public void TakeDamage(float hpDamage, float shieldDamage)
     {
         if (PlayerStatsService == null) return;
