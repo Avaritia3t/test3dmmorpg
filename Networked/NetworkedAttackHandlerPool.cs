@@ -3,6 +3,7 @@ using UnityEngine;
 
 /// <summary>
 /// Pools NetworkedAttackHandlerController instances. Register as INetworkedAttackHandlerPool when using the Networked stack.
+/// Required: one instance in scene (e.g. in game or H1/N1); CombatStartup registers it. Assign attackHandlerPrefab in inspector.
 /// </summary>
 public class NetworkedAttackHandlerPool : MonoBehaviour, INetworkedAttackHandlerPool
 {

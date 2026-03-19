@@ -2,9 +2,12 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Mirror;
 
-// Uses SubdomainV2Type and SubdomainState from World/SubdomainV2.cs
-
+/// <summary>
+/// Server-authoritative subdomain: state machine, combat, loot. Uses SubdomainV2Type/SubdomainState from World/SubdomainV2.cs.
+/// Required: on subdomain prefab (server-spawned), with NetworkIdentity, SyncSubdomainState. Optional: SubdomainItemGenerator, npcstatbarui for UI.
+/// </summary>
 [System.Serializable]
 public class NetworkedSubdomainController : MonoBehaviour
 {
@@ -54,13 +57,16 @@ public class NetworkedSubdomainController : MonoBehaviour
     private IDropRulesService dropRulesService;
     private INetworkedAttackHandlerPool networkedAttackHandlerPool;
     private IPlayerStatsService playerStatsService;
+    private INetworkedLootService networkedLootService;
     private IInventoryService InventoryService => inventoryService ??= GameBootstrap.Locator?.Get<IInventoryService>();
     private IDropRulesService DropRulesService => dropRulesService ??= GameBootstrap.Locator?.Get<IDropRulesService>();
     private INetworkedAttackHandlerPool AttackHandlerPool => networkedAttackHandlerPool ??= GameBootstrap.Locator?.Get<INetworkedAttackHandlerPool>();
     private IPlayerStatsService PlayerStatsService => playerStatsService ??= GameBootstrap.Locator?.Get<IPlayerStatsService>();
+    private INetworkedLootService NetworkedLootService => networkedLootService ??= GameBootstrap.Locator?.Get<INetworkedLootService>();
 
     private SubdomainItemGenerator itemGenerator;
     private Dictionary<SubdomainV2.SubdomainState, Action<GameObject>> stateHandlers;
+    private SyncSubdomainState syncSubdomainState;
 
     private SubdomainV2.SubdomainState currentState;
     public SubdomainV2.SubdomainState CurrentState => currentState;
@@ -68,6 +74,7 @@ public class NetworkedSubdomainController : MonoBehaviour
 
     private void Start()
     {
+        syncSubdomainState = GetComponent<SyncSubdomainState>();
         subdomainName = gameObject.name;
         currentHP = SubdomainHP;
         currentShield = SubdomainShield;
@@ -75,6 +82,8 @@ public class NetworkedSubdomainController : MonoBehaviour
         BuildStateHandlers();
         InitializeResourcesAndItems();
         currentState = SubdomainV2.SubdomainState.Idle;
+        if (syncSubdomainState != null && NetworkServer.active)
+            PushStateToSync();
     }
 
     private void BuildStateHandlers()
@@ -94,10 +103,33 @@ public class NetworkedSubdomainController : MonoBehaviour
 
     private void Update()
     {
+        if (syncSubdomainState != null && !NetworkServer.active)
+        {
+            currentHP = syncSubdomainState.currentHP;
+            currentShield = syncSubdomainState.currentShield;
+            currentState = syncSubdomainState.CurrentState;
+            if (statsUI != null)
+            {
+                statsUI.UpdateHealth(currentHP);
+                statsUI.UpdateShield(currentShield);
+            }
+            return;
+        }
+        if (!NetworkServer.active)
+            return;
         if (stateHandlers != null && stateHandlers.TryGetValue(currentState, out Action<GameObject> handler))
             handler?.Invoke(lastAttacker);
         else
             Debug.LogError("[NetworkedSubdomainController] Unknown SubdomainState: " + currentState);
+        PushStateToSync();
+    }
+
+    private void PushStateToSync()
+    {
+        if (syncSubdomainState == null || !NetworkServer.active) return;
+        syncSubdomainState.ServerSetHP(currentHP);
+        syncSubdomainState.ServerSetShield(currentShield);
+        syncSubdomainState.ServerSetState(currentState);
     }
 
     public void SetStatsUI(npcstatbarui ui)
@@ -285,6 +317,7 @@ public class NetworkedSubdomainController : MonoBehaviour
         {
             currentState = SubdomainV2.SubdomainState.UnderAttack;
         }
+        PushStateToSync();
     }
 
     private void ReleaseAttackHandler()
@@ -403,7 +436,7 @@ public class NetworkedSubdomainController : MonoBehaviour
         }
 
         var targetController = attackHandler.attackTarget.GetComponent<NetworkedDomainController>();
-        float targetHp = targetController != null ? targetController.GetCurrentHP() : (PlayerStatsService?.playerStats.currentHP ?? 0f);
+        float targetHp = targetController != null ? targetController.GetCurrentHP() : 0f;
         if (targetHp <= 0f)
         {
             attackHandler.isAttacking = false;
@@ -426,8 +459,6 @@ public class NetworkedSubdomainController : MonoBehaviour
         currentShield = 0;
 
         TransferResourcesAndItemsToPlayer();
-        if (PlayerStatsService != null)
-            PlayerStatsService.AddExperience(CalculateExpReward());
 
         currentState = SubdomainV2.SubdomainState.Regenerating;
         ReleaseAttackHandler();
@@ -463,6 +494,8 @@ public class NetworkedSubdomainController : MonoBehaviour
             currentHP = Mathf.Min(currentHP, SubdomainHP);
             currentShield = Mathf.Min(currentShield, SubdomainShield);
 
+            PushStateToSync();
+
             if (statsUI != null)
             {
                 statsUI.UpdateHealth(currentHP);
@@ -479,27 +512,46 @@ public class NetworkedSubdomainController : MonoBehaviour
 
     private void TransferResourcesAndItemsToPlayer()
     {
-        if (InventoryService == null) return;
+        if (!NetworkServer.active) return;
         if (resources == null) return;
 
+        var conn = lastAttacker != null ? lastAttacker.GetComponent<NetworkIdentity>()?.connectionToClient : null;
+
+        if (NetworkedLootService != null && conn != null)
+        {
+            foreach (var resource in resources)
+            {
+                NetworkedLootService.AddResourceForConnection(conn, resource);
+                resource.quantity = 0;
+            }
+            if (spawnedItems != null)
+            {
+                foreach (var item in spawnedItems)
+                    NetworkedLootService.AddItemForConnection(conn, item);
+                spawnedItems.Clear();
+            }
+            NetworkedLootService.AddExperienceForConnection(conn, CalculateExpReward());
+            return;
+        }
+
+        if (InventoryService == null) return;
         foreach (var resource in resources)
         {
             InventoryService.AddResource(resource);
-            resource.quantity = 0; // Set quantity to zero after transfer
+            resource.quantity = 0;
         }
+        if (PlayerStatsService != null)
+            PlayerStatsService.AddExperience(CalculateExpReward());
 
         if (spawnedItems == null) return;
         List<Item> itemsToRemove = new List<Item>();
         foreach (var item in spawnedItems)
         {
             InventoryService.AddItem(item);
-            itemsToRemove.Add(item); // Add item to the list of items to remove
+            itemsToRemove.Add(item);
         }
-
         foreach (var item in itemsToRemove)
-        {
             spawnedItems.Remove(item);
-        }
 
         // Debug.Log("Logging Player inventory post-transfer.");
         // InventoryManager.Instance.LogPlayerInventory();

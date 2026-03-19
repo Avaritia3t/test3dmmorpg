@@ -3,7 +3,7 @@ using UnityEngine;
 [DefaultExecutionOrder(-1000)]
 public class GameBootstrap : MonoBehaviour
 {
-    public static ServiceLocator Locator { get; private set; }
+    public static ServiceLocator Locator { get; set; }
 
     private void Awake()
     {
@@ -25,5 +25,7 @@ public class GameBootstrap : MonoBehaviour
         DataStartup.Configure(Locator);
         UIStartup.Configure(Locator);
         SceneStartup.Configure(Locator);
+
+        ServiceInitializer.ValidateAndLogServices(Locator, requireNetworked: false);
     }
 }

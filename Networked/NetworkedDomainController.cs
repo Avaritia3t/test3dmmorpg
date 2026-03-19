@@ -1,7 +1,13 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
+using Mirror;
 
+/// <summary>
+/// Player controller for networked games: movement (local input), map buffs, combat via NetworkedPlayerCombatHelperController.
+/// Required: on player prefab, with NetworkIdentity, SyncPlayerStats, NetworkedPlayerCombatHelperController, NavMeshAgent, PlayerStatsManager.
+/// Optional: NetworkedPlayerLootReceiver for receiving server-routed loot.
+/// </summary>
 public class NetworkedDomainController : MonoBehaviour
 {
     // Movement
@@ -31,13 +37,17 @@ public class NetworkedDomainController : MonoBehaviour
     private IPlayerStatsService PlayerStatsService => playerStatsService ??= GameBootstrap.Locator?.Get<IPlayerStatsService>();
     private IMapService MapService => mapService ??= GameBootstrap.Locator?.Get<IMapService>();
 
+    // Mirror: optional; when present, input is local-player-only and stats are server-synced
+    private NetworkIdentity networkIdentity;
+    private SyncPlayerStats syncPlayerStats;
+
     private void Awake()
     {
-        DontDestroyOnLoad(gameObject);
-
         agent = GetComponent<NavMeshAgent>();
         playerStatsManager = GetComponent<PlayerStatsManager>();
         combatHelper = GetComponent<NetworkedPlayerCombatHelperController>();
+        networkIdentity = GetComponent<NetworkIdentity>();
+        syncPlayerStats = GetComponent<SyncPlayerStats>();
 
         if (agent != null)
         {
@@ -60,10 +70,27 @@ public class NetworkedDomainController : MonoBehaviour
     private void Start()
     {
         mainCamera = Camera.main;
+        if (networkIdentity == null || networkIdentity.isLocalPlayer)
+            DontDestroyOnLoad(gameObject);
+        if (syncPlayerStats != null && networkIdentity != null && NetworkServer.active && playerStatsManager != null)
+            syncPlayerStats.ServerInitFrom(playerStatsManager.playerStats);
     }
 
     private void Update()
     {
+        if (networkIdentity != null && !networkIdentity.isLocalPlayer)
+        {
+            if (NetworkServer.active)
+                TickCombat();
+            return;
+        }
+
+        if (syncPlayerStats != null && playerHealthUi != null)
+        {
+            playerHealthUi.UpdateHealth(syncPlayerStats.currentHP);
+            playerHealthUi.UpdateShield(syncPlayerStats.currentShield);
+        }
+
         if (mainCamera == null)
         {
             mainCamera = Camera.main;
@@ -142,12 +169,13 @@ public class NetworkedDomainController : MonoBehaviour
 
     private void InitializeAgent()
     {
+        if (networkIdentity != null)
+            return;
         if (MapService == null || MapService.currentMap == null)
         {
             Debug.LogError("[NetworkedDomainController] IMapService or currentMap is null.");
             return;
         }
-
         transform.position = MapService.currentMap.spawnPoint;
     }
 
@@ -173,18 +201,20 @@ public class NetworkedDomainController : MonoBehaviour
     /// <summary>Returns this player's current HP for aggro/target checks (e.g. subdomain retaliation).</summary>
     public float GetCurrentHP()
     {
-        if (PlayerStatsService == null) return 0f;
-        return PlayerStatsService.playerStats.currentHP;
+        if (syncPlayerStats != null)
+            return syncPlayerStats.currentHP;
+        if (playerStatsManager == null) return 0f;
+        return playerStatsManager.playerStats.currentHP;
     }
 
     public void TakeDamage(float hpDamage, float shieldDamage)
     {
-        if (PlayerStatsService == null) return;
+        if (networkIdentity != null && !NetworkServer.active)
+            return;
+        if (playerStatsManager == null) return;
 
-        PlayerStats playerStats = PlayerStatsService.playerStats;
+        PlayerStats playerStats = playerStatsManager.playerStats;
         lastAttackedTime = Time.time;
-
-        // Debug.Log($"NetworkedDomainController TakeDamage: Initial Shield = {playerStats.currentShield}, Initial HP = {playerStats.currentHP}");
 
         if (playerStats.currentShield > 0)
         {
@@ -192,29 +222,27 @@ public class NetworkedDomainController : MonoBehaviour
             playerStats.currentShield -= shieldDepletion;
             float excessShieldDamage = shieldDamage - shieldDepletion;
             playerStats.currentHP -= (hpDamage + excessShieldDamage);
-
-            if (playerHealthUi != null)
-            {
-                playerHealthUi.UpdateShield(playerStats.currentShield);
-                playerHealthUi.UpdateHealth(playerStats.currentHP);
-            }
-            // Debug.Log($"NetworkedDomainController TakeDamage: Shield/HP after damage. Shield = {playerStats.currentShield}, HP = {playerStats.currentHP}");
         }
         else
         {
             playerStats.currentHP -= hpDamage;
-            if (playerHealthUi != null)
-                playerHealthUi.UpdateHealth(playerStats.currentHP);
-            // Debug.Log($"NetworkedDomainController TakeDamage: No Shield, HP after damage = {playerStats.currentHP}");
         }
 
         if (playerStats.currentHP <= 0)
         {
             HandleDeath();
             playerStats.currentHP = 0;
-            if (playerHealthUi != null)
-                playerHealthUi.UpdateHealth(playerStats.currentHP);
-            // Debug.Log("NetworkedDomainController TakeDamage: Player has died. HP set to 0.");
+        }
+
+        if (syncPlayerStats != null)
+        {
+            syncPlayerStats.ServerSetCurrentHP(playerStats.currentHP);
+            syncPlayerStats.ServerSetCurrentShield(playerStats.currentShield);
+        }
+        if (playerHealthUi != null && syncPlayerStats == null)
+        {
+            playerHealthUi.UpdateShield(playerStats.currentShield);
+            playerHealthUi.UpdateHealth(playerStats.currentHP);
         }
 
         if (regenerateCoroutine != null)
@@ -243,7 +271,12 @@ public class NetworkedDomainController : MonoBehaviour
             playerStats.currentHP = Mathf.Min(playerStats.currentHP, playerStats.baseHP);
             playerStats.currentShield = Mathf.Min(playerStats.currentShield, playerStats.baseShield);
 
-            if (playerHealthUi != null)
+            if (syncPlayerStats != null)
+            {
+                syncPlayerStats.ServerSetCurrentHP(playerStats.currentHP);
+                syncPlayerStats.ServerSetCurrentShield(playerStats.currentShield);
+            }
+            if (playerHealthUi != null && syncPlayerStats == null)
             {
                 playerHealthUi.UpdateHealth(playerStats.currentHP);
                 playerHealthUi.UpdateShield(playerStats.currentShield);

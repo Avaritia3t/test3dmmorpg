@@ -1,6 +1,12 @@
 using UnityEngine;
 using UnityEngine.AI;
+using Mirror;
 
+/// <summary>
+/// Scene setup for N1 (networked): SwitchMap, spawn point for all connections, optional server init of INetworkedAttackHandlerPool.
+/// Required: one instance in N1 scene. No component requirements; uses MapService and optional INetworkedAttackHandlerPool from locator.
+/// </summary>
+[DefaultExecutionOrder(-500)]
 public class NetworkedN1SceneController : MonoBehaviour
 {
     private IMapService mapService;
@@ -35,12 +41,12 @@ public class NetworkedN1SceneController : MonoBehaviour
             Debug.LogError("N1 map data could not be loaded.");
         }
 
-        if (AttackHandlerPool != null)
+        if (NetworkServer.active && AttackHandlerPool != null)
         {
             AttackHandlerPool.InitializePool();
-            Debug.Log("NetworkedAttackHandlerPool initialized for N1 Scene.");
+            Debug.Log("NetworkedAttackHandlerPool initialized for N1 Scene (server).");
         }
-        else
+        else if (AttackHandlerPool == null)
         {
             Debug.LogError("INetworkedAttackHandlerPool not found.");
         }
@@ -48,36 +54,51 @@ public class NetworkedN1SceneController : MonoBehaviour
 
     private void SetPlayerSpawnPoint(Vector3 spawnPoint)
     {
-        var playerObj = GameObject.FindGameObjectWithTag("Player");
-        if (playerObj != null)
+        Vector3 adjustedSpawnPoint;
+        if (!TryGetAdjustedSpawnOnNavMesh(spawnPoint, out adjustedSpawnPoint))
         {
-            var player = playerObj;
-            NavMeshAgent agent = playerObj.GetComponent<NavMeshAgent>();
+            Debug.LogError($"Could not find a valid NavMesh position below the intended spawn point ({spawnPoint}).");
+            return;
+        }
 
-            // Attempt to find the NavMesh Y position at the given X and Z coordinates
-            Vector3 navMeshPoint = new Vector3(spawnPoint.x, spawnPoint.y + 200f, spawnPoint.z); // Start the raycast from above the spawn point
-            NavMeshHit hit;
-            float maxDistance = 200f; // Maximum distance to check below the spawn point
-
-            // Perform a downward raycast to find the NavMesh
-            if (NavMesh.SamplePosition(navMeshPoint, out hit, maxDistance, NavMesh.AllAreas))
+        if (NetworkServer.active)
+        {
+            foreach (var conn in NetworkServer.connections.Values)
             {
-                // Use the Y value from the NavMesh hit position to adjust the spawn point
-                Vector3 adjustedSpawnPoint = new Vector3(spawnPoint.x, hit.position.y, spawnPoint.z);
-                agent.Warp(adjustedSpawnPoint); // Warp the player to the adjusted position
-                Debug.Log($"Player spawn point set to: {adjustedSpawnPoint.ToString("F2")} on NavMesh.");
+                if (conn?.identity == null) continue;
+                WarpPlayerTo(conn.identity.gameObject, adjustedSpawnPoint);
             }
-            else
-            {
-                Debug.LogError($"Could not find a valid NavMesh position within {maxDistance} units below the intended spawn point ({spawnPoint}).");
-            }
-
-            // Log the player's final position
-            Debug.Log($"Player current position after warp: {player.transform.position.ToString("F2")}");
         }
         else
         {
-            Debug.LogError("Player object not found.");
+            var playerObj = GameObject.FindGameObjectWithTag("Player");
+            if (playerObj != null)
+                WarpPlayerTo(playerObj, adjustedSpawnPoint);
+            else
+                Debug.LogError("Player object not found.");
         }
+    }
+
+    private static bool TryGetAdjustedSpawnOnNavMesh(Vector3 spawnPoint, out Vector3 adjusted)
+    {
+        adjusted = spawnPoint;
+        Vector3 navMeshPoint = new Vector3(spawnPoint.x, spawnPoint.y + 200f, spawnPoint.z);
+        NavMeshHit hit;
+        if (NavMesh.SamplePosition(navMeshPoint, out hit, 200f, NavMesh.AllAreas))
+        {
+            adjusted = new Vector3(spawnPoint.x, hit.position.y, spawnPoint.z);
+            return true;
+        }
+        return false;
+    }
+
+    private static void WarpPlayerTo(GameObject playerObj, Vector3 position)
+    {
+        var agent = playerObj.GetComponent<NavMeshAgent>();
+        if (agent != null)
+            agent.Warp(position);
+        else
+            playerObj.transform.position = position;
+        Debug.Log($"Player {playerObj.name} spawn point set to: {position.ToString("F2")}.");
     }
 }

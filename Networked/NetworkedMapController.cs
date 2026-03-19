@@ -1,6 +1,10 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// IMapService for networked games. SwitchMap sets currentMap; each player applies buffs to themselves in Awake.
+/// Required: one instance in scene (DontDestroyOnLoad). Assign allMapsData. WorldStartup registers as IMapService when present.
+/// </summary>
 public class NetworkedMapController : MonoBehaviour, IMapService
 {
     [SerializeField]
@@ -16,25 +20,14 @@ public class NetworkedMapController : MonoBehaviour, IMapService
         DontDestroyOnLoad(gameObject);
     }
 
-    // Switch to a different map by ID
+    // Switch to a different map by ID. Only sets currentMap; each player applies buffs to themselves in NetworkedDomainController.Awake.
     public void SwitchMap(string mapID)
     {
         currentMap = allMapsData.GetMapDataByID(mapID);
         if (currentMap != null)
-        {
             Debug.Log($"Switched to map: {currentMap.mapID}");
-
-            // Example: Find the player and apply new map buffs
-            GameObject player = GameObject.FindGameObjectWithTag("Player");
-            if (player)
-            {
-                ApplyMapBuffs(player);
-            }
-        }
         else
-        {
             Debug.LogError($"Map with ID {mapID} not found.");
-        }
     }
 
     // Apply buffs based on the current map

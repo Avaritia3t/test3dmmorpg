@@ -2,8 +2,8 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Generates items for subdomains (stats, subtype, icon, damage type). Used by NetworkedSubdomainController
-/// so subdomain stays focused on state, combat, and resources.
+/// Generates items for subdomains (stats, subtype, icon, damage type). Used by NetworkedSubdomainController.
+/// Optional: on subdomain prefab, same GameObject as NetworkedSubdomainController. No scene placement.
 /// </summary>
 public class SubdomainItemGenerator : MonoBehaviour
 {

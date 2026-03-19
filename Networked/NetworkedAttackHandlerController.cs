@@ -4,6 +4,7 @@ using UnityEngine;
 /// <summary>
 /// Networked attack handler: only NetworkedDomainController and NetworkedSubdomainController as attacker/target.
 /// Use with INetworkedAttackHandlerPool. Leave Combat/AttackHandlerV2 unchanged for the local stack.
+/// Required: on pooled attack-handler prefab (instantiated by NetworkedAttackHandlerPool). No Mirror component required.
 /// </summary>
 public class NetworkedAttackHandlerController : MonoBehaviour
 {
@@ -22,13 +23,12 @@ public class NetworkedAttackHandlerController : MonoBehaviour
         var networkedPlayer = attacker.GetComponent<NetworkedDomainController>();
         var networkedNpc = attacker.GetComponent<NetworkedSubdomainController>();
 
-        if (networkedPlayer != null && PlayerStatsService != null)
+        if (networkedPlayer != null && networkedPlayer.playerStatsManager != null)
         {
-            var ps = PlayerStatsService.playerStats;
+            var ps = networkedPlayer.playerStatsManager.playerStats;
             attackSpeed = ps.attackSpeed;
             attackDamage = ps.currentDamage;
             attackRange = ps.attackRange;
-            // Debug.Log("[NetworkedAttackHandlerController] Player Attack Range: " + attackRange);
         }
         else if (networkedNpc != null)
         {
@@ -139,38 +139,43 @@ public class NetworkedAttackHandlerController : MonoBehaviour
 
     private void ApplyEffects(GameObject target, GameObject attacker)
     {
-        if (PlayerStatsService == null) return;
-        var playerStats = PlayerStatsService.playerStats;
+        PlayerStats attackerStats = GetAttackerPlayerStats(attacker);
+        if (attackerStats == null) return;
 
-        if (Random.value < playerStats.criticalChance)
+        if (Random.value < attackerStats.criticalChance)
         {
-            var (hpDamage, shieldDamage) = SetOutgoingDamage(attackDamage * playerStats.criticalDamage);
-            ApplyDamage(target, attacker, hpDamage, shieldDamage);
-            // Debug.Log("[NetworkedAttackHandlerController] Critical Hit!");
-        }
-
-        if (Random.value < playerStats.afflictionChance)
-        {
-            StartCoroutine(ApplyAffliction(target, playerStats.afflictionDamage, 10f));
-            // Debug.Log("[NetworkedAttackHandlerController] Affliction Applied!");
-        }
-
-        if (Random.value < playerStats.etherealChance)
-        {
-            var (hpDamage, shieldDamage) = SetOutgoingDamage(playerStats.etherealDamage);
+            var (hpDamage, shieldDamage) = SetOutgoingDamage(attackDamage * attackerStats.criticalDamage);
             ApplyDamage(target, attacker, hpDamage, shieldDamage);
         }
 
-        if (Random.value < playerStats.demonicChance)
+        if (Random.value < attackerStats.afflictionChance)
         {
-            var (hpDamage, shieldDamage) = SetOutgoingDamage(playerStats.demonicDamage);
+            StartCoroutine(ApplyAffliction(target, attackerStats.afflictionDamage, 10f));
+        }
+
+        if (Random.value < attackerStats.etherealChance)
+        {
+            var (hpDamage, shieldDamage) = SetOutgoingDamage(attackerStats.etherealDamage);
             ApplyDamage(target, attacker, hpDamage, shieldDamage);
         }
 
-        if (Random.value < playerStats.inevitableChance)
+        if (Random.value < attackerStats.demonicChance)
         {
-            StartCoroutine(ApplyInevitableDamage(target, playerStats.inevitableDamage, 3f));
+            var (hpDamage, shieldDamage) = SetOutgoingDamage(attackerStats.demonicDamage);
+            ApplyDamage(target, attacker, hpDamage, shieldDamage);
         }
+
+        if (Random.value < attackerStats.inevitableChance)
+        {
+            StartCoroutine(ApplyInevitableDamage(target, attackerStats.inevitableDamage, 3f));
+        }
+    }
+
+    private static PlayerStats GetAttackerPlayerStats(GameObject attacker)
+    {
+        if (attacker == null) return null;
+        var domain = attacker.GetComponent<NetworkedDomainController>();
+        return domain?.playerStatsManager?.playerStats;
     }
 
     public (float, float) SetOutgoingDamage(float damage)

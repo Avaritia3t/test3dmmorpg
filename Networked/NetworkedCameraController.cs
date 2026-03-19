@@ -1,36 +1,55 @@
 using UnityEngine;
+using Mirror;
 
+/// <summary>
+/// Third-person camera that follows the local player. Uses NetworkClient.localPlayer when Mirror is active.
+/// Required: one instance in scene (e.g. on main camera or a camera rig). No component requirements on player.
+/// </summary>
 public class NetworkedCameraController : MonoBehaviour
 {
-    public Transform domain; // Reference to the domain object
-    public float distance = 20f; // Initial distance from the domain for a more zoomed-out start
-    public float zoomSpeed = 10f; // How quickly the camera zooms in/out
-    public float rotationSpeed = 100f; // Speed of horizontal rotation
-    public float pitchSpeed = 50f; // Speed of vertical pitch adjustments
+    public Transform domain;
+    public float distance = 20f;
+    public float zoomSpeed = 10f;
+    public float rotationSpeed = 100f;
+    public float pitchSpeed = 50f;
     private float currentZoom;
     private float currentYaw = 0f;
-    private float currentPitch = 45f; // Initial vertical angle
+    private float currentPitch = 45f;
 
     void Start()
     {
-        currentZoom = distance; // Ensures camera starts zoomed out as per 'distance' value.
-        // Automatically assign the player object if not set in the inspector
+        currentZoom = distance;
+        AssignLocalPlayerTarget();
+    }
+
+    void OnEnable()
+    {
         if (domain == null)
+            AssignLocalPlayerTarget();
+    }
+
+    private void AssignLocalPlayerTarget()
+    {
+        if (domain != null) return;
+        if (NetworkClient.active && NetworkClient.localPlayer != null)
         {
-            GameObject playerObject = GameObject.FindGameObjectWithTag("Player");
-            if (playerObject != null)
-            {
-                domain = playerObject.transform;
-            }
-            else
-            {
-                Debug.LogError("Player object not found. Ensure the player is tagged 'Player'.");
-            }
+            domain = NetworkClient.localPlayer.transform;
+            return;
         }
+        GameObject playerObject = GameObject.FindGameObjectWithTag("Player");
+        if (playerObject != null)
+            domain = playerObject.transform;
+        else
+            Debug.LogError("[NetworkedCameraController] Player not found. Tag 'Player' or Mirror localPlayer.");
     }
 
     void Update()
     {
+        if (domain == null)
+        {
+            AssignLocalPlayerTarget();
+            return;
+        }
         ControlZoom();
         ControlRotation();
         ControlPitch();

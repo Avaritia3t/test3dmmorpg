@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System.Diagnostics.Tracing;
+using Mirror;
 
 [ExecuteInEditMode]
 public class TerrainUtils : MonoBehaviour
@@ -10,7 +11,10 @@ public class TerrainUtils : MonoBehaviour
     public int NumberOfSubdomains = 20; // Default to 20, adjustable in Inspector
     private List<Vector3> subdomainCenters = new List<Vector3>(); // To store centers of existing subdomains
     public GameObject npcStatCanvasPrefab;
-    
+
+    [Tooltip("When set and running as server, subdomains are spawned via Mirror (server authority). Leave empty for local/single-player SubdomainV2 creation.")]
+    public GameObject networkedSubdomainPrefab;
+
     private int npcCounter = 1; // Counter for naming NPCs sequentially
 
     void Start()
@@ -22,37 +26,61 @@ public class TerrainUtils : MonoBehaviour
     [ContextMenu("Create Subdomains")]
     public void CreateSubdomains()
     {
-        // Debug.Log("CreateSubdomains - TerrainUtils: Initiating creation of subdomains.");
         if (!Application.isPlaying)
         {
-            // Debug.Log("CreateSubdomains - TerrainUtils: Clearing existing subdomains before creating new ones.");
-            ClearSubdomains(); // Optionally clear existing subdomains before creating new ones, only in edit mode
+            ClearSubdomains();
         }
+
+        if (networkedSubdomainPrefab != null && NetworkServer.active)
+        {
+            CreateSubdomainsServerNetworked();
+            return;
+        }
+        if (networkedSubdomainPrefab != null && !NetworkServer.active)
+        {
+            // Clients do not create subdomains; server spawns and syncs them.
+            return;
+        }
+
         foreach (Transform child in transform)
         {
             Terrain terrain = child.GetComponent<Terrain>();
             if (terrain != null)
             {
-                // Debug.Log("CreateSubdomains - TerrainUtils: Found terrain, creating subdomains.");
-                subdomainCenters.Clear(); // Clear the list of subdomain centers for each terrain
+                subdomainCenters.Clear();
                 for (int i = 0; i < NumberOfSubdomains; i++)
                 {
                     Vector3 randomPoint = CastRayForRandomPoint(terrain);
-                    if (randomPoint != Vector3.zero && IsValidLocation(randomPoint, terrain)) // Check validity for each terrain
+                    if (randomPoint != Vector3.zero && IsValidLocation(randomPoint, terrain))
                     {
-                        // Debug.Log($"CreateSubdomains - TerrainUtils: Valid location found at {randomPoint}");
                         GameObject subdomain = CreateSphereAtPoint(randomPoint, child);
                         subdomainCenters.Add(randomPoint);
                     }
-                    else
-                    {
-                        //  Debug.Log($"CreateSubdomains - TerrainUtils: Invalid location at {randomPoint}");
-                    }
                 }
             }
-            else
+        }
+    }
+
+    private void CreateSubdomainsServerNetworked()
+    {
+        foreach (Transform child in transform)
+        {
+            Terrain terrain = child.GetComponent<Terrain>();
+            if (terrain == null) continue;
+            subdomainCenters.Clear();
+            for (int i = 0; i < NumberOfSubdomains; i++)
             {
-                // Debug.Log("CreateSubdomains - TerrainUtils: No terrain component found on child.");
+                Vector3 randomPoint = CastRayForRandomPoint(terrain);
+                if (randomPoint == Vector3.zero || !IsValidLocation(randomPoint, terrain)) continue;
+                int level = Random.Range(1, 21);
+                SubdomainV2Type type = NetworkedSubdomainSpawner.GetRandomSubdomainType();
+                GameObject go = NetworkedSubdomainSpawner.ServerSpawnSubdomain(networkedSubdomainPrefab, randomPoint, Quaternion.identity, level, type);
+                if (go != null)
+                {
+                    go.transform.SetParent(child);
+                    subdomainCenters.Add(randomPoint);
+                    npcCounter++;
+                }
             }
         }
     }
