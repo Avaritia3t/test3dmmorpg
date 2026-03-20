@@ -7,6 +7,12 @@ public class PlayerStatsManager : MonoBehaviour, IPlayerStatsService
     public PlayerStats playerStats;
     private Dictionary<string, PropertyInfo> statProperties;
 
+    /// <summary>
+    /// Raised when this player's stats are changed via server-side equipment operations on this client copy
+    /// (e.g. EquipItem / UnequipItem). Networked combat can use this to resync derived combat stats.
+    /// </summary>
+    public event System.Action StatsChanged;
+
     private void Awake()
     {
         DontDestroyOnLoad(gameObject);
@@ -38,6 +44,7 @@ public class PlayerStatsManager : MonoBehaviour, IPlayerStatsService
                 ApplyItemStats(item);
                 item.isEquippable = true;
                 SaveStats();
+                StatsChanged?.Invoke();
                 return true;
             }
         }
@@ -53,6 +60,7 @@ public class PlayerStatsManager : MonoBehaviour, IPlayerStatsService
                 RemoveItemStats(item);
                 item.isEquippable = false;
                 SaveStats();
+                StatsChanged?.Invoke();
                 return true;
             }
         }
@@ -106,6 +114,7 @@ public class PlayerStatsManager : MonoBehaviour, IPlayerStatsService
         {
             string json = PlayerPrefs.GetString("PlayerStats");
             playerStats = JsonUtility.FromJson<PlayerStats>(json);
+            StatsChanged?.Invoke();
         }
     }
 

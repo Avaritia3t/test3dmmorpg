@@ -6,6 +6,7 @@ using Mirror;
 /// Required: one instance in scene (often on same GameObject as NetworkedGameBootstrap). Assign player prefab in inspector.
 /// Player prefab must have: NetworkIdentity, SyncPlayerStats, NetworkedDomainController, NavMeshAgent, PlayerStatsManager.
 /// Optional: NetworkTransform (Mirror) for movement sync; NetworkedPlayerLootReceiver for loot.
+/// Optional: NetworkedAbilityExecutor for keyboard ability intents (assign AbilityDefinitionSO assets).
 /// </summary>
 public class GameNetworkManager : NetworkManager
 {
@@ -30,6 +31,11 @@ public class GameNetworkManager : NetworkManager
             : Instantiate(playerPrefab);
 
         NetworkServer.AddPlayerForConnection(conn, player);
+
+        // Server: apply map buffs to this player so combat uses correct stats
+        var domainController = player.GetComponent<NetworkedDomainController>();
+        if (domainController != null)
+            domainController.ApplyMapBuffs();
     }
 
     public override void OnServerConnect(NetworkConnectionToClient conn)

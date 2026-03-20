@@ -23,12 +23,12 @@ public class NetworkedAttackHandlerController : MonoBehaviour
         var networkedPlayer = attacker.GetComponent<NetworkedDomainController>();
         var networkedNpc = attacker.GetComponent<NetworkedSubdomainController>();
 
-        if (networkedPlayer != null && networkedPlayer.playerStatsManager != null)
+        if (networkedPlayer != null)
         {
-            var ps = networkedPlayer.playerStatsManager.playerStats;
-            attackSpeed = ps.attackSpeed;
-            attackDamage = ps.currentDamage;
-            attackRange = ps.attackRange;
+            var snap = networkedPlayer.GetCombatStatsSnapshot();
+            attackSpeed = snap.attackSpeed;
+            attackDamage = snap.attackDamage;
+            attackRange = snap.attackRange;
         }
         else if (networkedNpc != null)
         {
@@ -139,8 +139,8 @@ public class NetworkedAttackHandlerController : MonoBehaviour
 
     private void ApplyEffects(GameObject target, GameObject attacker)
     {
-        PlayerStats attackerStats = GetAttackerPlayerStats(attacker);
-        if (attackerStats == null) return;
+        CombatStatsSnapshot attackerStats = GetAttackerCombatStats(attacker);
+        if (!attackerStats.IsValid) return;
 
         if (Random.value < attackerStats.criticalChance)
         {
@@ -150,7 +150,30 @@ public class NetworkedAttackHandlerController : MonoBehaviour
 
         if (Random.value < attackerStats.afflictionChance)
         {
-            StartCoroutine(ApplyAffliction(target, attackerStats.afflictionDamage, 10f));
+            var status = target.GetComponent<NetworkedStatusEffectController>();
+            if (status != null)
+            {
+                // Affliction DoT:
+                // - duration uptime refreshes to full
+                // - immediate "first tick" damage is gated by ICD
+                float baseDuration = 10f;
+                float tickInterval = 2f;
+                float internalDamageCooldown = tickInterval; // First pass: ICD equals tick interval.
+
+                status.ApplyAffliction(
+                    abilityId: "Affliction",
+                    attackerSnapshot: attackerStats,
+                    damageSource: attacker,
+                    baseTickDamage: attackerStats.afflictionDamage,
+                    baseDurationSeconds: baseDuration,
+                    tickIntervalSeconds: tickInterval,
+                    internalDamageCooldownSeconds: internalDamageCooldown);
+            }
+            else
+            {
+                // Fallback for targets that don't have NetworkedStatusEffectController yet.
+                StartCoroutine(ApplyAffliction(target, attackerStats.afflictionDamage, 10f));
+            }
         }
 
         if (Random.value < attackerStats.etherealChance)
@@ -167,15 +190,33 @@ public class NetworkedAttackHandlerController : MonoBehaviour
 
         if (Random.value < attackerStats.inevitableChance)
         {
-            StartCoroutine(ApplyInevitableDamage(target, attackerStats.inevitableDamage, 3f));
+            var status = target.GetComponent<NetworkedStatusEffectController>();
+            if (status != null)
+            {
+                float delay = 3f;
+                float internalDamageCooldown = delay; // First pass.
+
+                status.ApplyInevitable(
+                    abilityId: "Inevitable",
+                    attackerSnapshot: attackerStats,
+                    damageSource: attacker,
+                    baseDamage: attackerStats.inevitableDamage,
+                    baseDelaySeconds: delay,
+                    internalDamageCooldownSeconds: internalDamageCooldown);
+            }
+            else
+            {
+                // Fallback for targets that don't have the new controller yet.
+                StartCoroutine(ApplyInevitableDamage(target, attackerStats.inevitableDamage, 3f));
+            }
         }
     }
 
-    private static PlayerStats GetAttackerPlayerStats(GameObject attacker)
+    private static CombatStatsSnapshot GetAttackerCombatStats(GameObject attacker)
     {
-        if (attacker == null) return null;
+        if (attacker == null) return default;
         var domain = attacker.GetComponent<NetworkedDomainController>();
-        return domain?.playerStatsManager?.playerStats;
+        return domain != null ? domain.GetCombatStatsSnapshot() : default;
     }
 
     public (float, float) SetOutgoingDamage(float damage)

@@ -14,11 +14,20 @@ public class NetworkedDomainController : MonoBehaviour
     private NavMeshAgent agent;
     [SerializeField] private float moveSpeed = 100f;
     [SerializeField] private float acceleration = 100f;
+    private float statusMoveSpeedMultiplier = 1f;
+    private bool statusMovementRooted = false;
 
     // State
     private bool mapBuffsApplied;
     private float lastAttackedTime;
     private Coroutine regenerateCoroutine;
+    private float lastCombatStatsSendTime;
+    private const float CombatStatsSendInterval = 0.1f;
+
+    // Combat snapshot sending optimization
+    private bool combatStatsSendPending;
+    private bool hasLastSentCombatStats;
+    private CombatStatsSnapshot lastSentCombatStats;
 
     // Combat (delegated to helper)
     private NetworkedPlayerCombatHelperController combatHelper;
@@ -51,8 +60,8 @@ public class NetworkedDomainController : MonoBehaviour
 
         if (agent != null)
         {
-            agent.speed = moveSpeed;
             agent.acceleration = acceleration;
+            ApplyMoveSpeed();
         }
         else
         {
@@ -65,6 +74,18 @@ public class NetworkedDomainController : MonoBehaviour
         InitializePlayerStatCanvas();
         InitializeAgent();
         ApplyMapBuffs();
+
+        // Subscribe to client-side equipment changes so we only send snapshots when stats actually change.
+        if (playerStatsManager != null)
+            playerStatsManager.StatsChanged += OnPlayerStatsChanged;
+
+        RequestCombatStatsResyncIfLocal();
+    }
+
+    private void OnDestroy()
+    {
+        if (playerStatsManager != null)
+            playerStatsManager.StatsChanged -= OnPlayerStatsChanged;
     }
 
     private void Start()
@@ -73,7 +94,10 @@ public class NetworkedDomainController : MonoBehaviour
         if (networkIdentity == null || networkIdentity.isLocalPlayer)
             DontDestroyOnLoad(gameObject);
         if (syncPlayerStats != null && networkIdentity != null && NetworkServer.active && playerStatsManager != null)
+        {
             syncPlayerStats.ServerInitFrom(playerStatsManager.playerStats);
+            syncPlayerStats.ServerSetMoveSpeed(GetServerMoveSpeed());
+        }
     }
 
     private void Update()
@@ -81,9 +105,14 @@ public class NetworkedDomainController : MonoBehaviour
         if (networkIdentity != null && !networkIdentity.isLocalPlayer)
         {
             if (NetworkServer.active)
+            {
+                ApplyMoveSpeed();
                 TickCombat();
+            }
             return;
         }
+
+        ApplyMoveSpeed();
 
         if (syncPlayerStats != null && playerHealthUi != null)
         {
@@ -104,6 +133,120 @@ public class NetworkedDomainController : MonoBehaviour
         CheckForMouseInput();
         CheckForKeyboardInput();
         TickCombat();
+
+        // Send snapshots only when there's a pending change, not every frame.
+        if (combatStatsSendPending && Time.time - lastCombatStatsSendTime >= CombatStatsSendInterval)
+            TrySendCombatStatsToServer();
+    }
+
+    private void OnPlayerStatsChanged()
+    {
+        combatStatsSendPending = true;
+        if (networkIdentity != null && networkIdentity.isLocalPlayer)
+        {
+            // Attempt immediate send to reduce staleness after equip/unequip.
+            if (Time.time - lastCombatStatsSendTime >= CombatStatsSendInterval)
+                TrySendCombatStatsToServer();
+        }
+    }
+
+    private void RequestCombatStatsResyncIfLocal()
+    {
+        if (networkIdentity != null && networkIdentity.isLocalPlayer)
+            combatStatsSendPending = true;
+    }
+
+    /// <summary>Server: compute move speed from server-side stats and sync to clients. Client: apply server's syncMoveSpeed.</summary>
+    private void ApplyMoveSpeed()
+    {
+        if (agent == null) return;
+
+        if (NetworkServer.active)
+        {
+            // Server-authoritative: compute from server's state only (map buffs applied at spawn; future: equipment/combat effects)
+            float speed = GetServerMoveSpeed();
+
+            float effectiveSpeed = statusMovementRooted ? 0f : speed * Mathf.Max(0f, statusMoveSpeedMultiplier);
+            agent.speed = effectiveSpeed;
+            if (syncPlayerStats != null)
+                syncPlayerStats.ServerSetMoveSpeed(effectiveSpeed);
+        }
+        else
+        {
+            // Client: use server-synced value only (no client-side override)
+            float speed = syncPlayerStats != null && syncPlayerStats.syncMoveSpeed > 0f
+                ? syncPlayerStats.syncMoveSpeed
+                : moveSpeed;
+            agent.speed = speed;
+        }
+    }
+
+    /// <summary>Server only: move speed from server's PlayerStats (map buffs, etc.). Fallback to serialized default.</summary>
+    private float GetServerMoveSpeed()
+    {
+        if (playerStatsManager != null && playerStatsManager.playerStats.moveSpeed > 0f)
+            return playerStatsManager.playerStats.moveSpeed;
+        return moveSpeed;
+    }
+
+    /// <summary>Called by server-side status effects to apply slow/root movement modifiers.</summary>
+    public void SetMovementRootedAndSlow(bool rooted, float slowMultiplier)
+    {
+        statusMovementRooted = rooted;
+        statusMoveSpeedMultiplier = Mathf.Max(0f, slowMultiplier);
+
+        // Root should stop path following immediately.
+        if (agent != null)
+            agent.isStopped = rooted;
+    }
+
+    /// <summary>
+    /// Local player only: push combat stats to server when they change.
+    /// Uses last-sent comparison to avoid resending identical snapshots.
+    /// </summary>
+    private void TrySendCombatStatsToServer()
+    {
+        if (networkIdentity == null || !networkIdentity.isLocalPlayer || syncPlayerStats == null || playerStatsManager == null)
+            return;
+
+        var newSnapshot = CombatStatsSnapshot.From(playerStatsManager.playerStats);
+        if (!newSnapshot.IsValid)
+            return;
+
+        if (hasLastSentCombatStats && !IsDifferent(newSnapshot, lastSentCombatStats))
+        {
+            combatStatsSendPending = false;
+            return;
+        }
+
+        lastCombatStatsSendTime = Time.time;
+        lastSentCombatStats = newSnapshot;
+        hasLastSentCombatStats = true;
+        syncPlayerStats.SendCombatStats(newSnapshot);
+        combatStatsSendPending = false;
+    }
+
+    private static bool IsDifferent(CombatStatsSnapshot a, CombatStatsSnapshot b)
+    {
+        const float eps = 0.0001f;
+        return Mathf.Abs(a.attackSpeed - b.attackSpeed) > eps ||
+               Mathf.Abs(a.attackDamage - b.attackDamage) > eps ||
+               Mathf.Abs(a.attackRange - b.attackRange) > eps ||
+               Mathf.Abs(a.penetration - b.penetration) > eps ||
+               Mathf.Abs(a.integrity - b.integrity) > eps ||
+               Mathf.Abs(a.damageReduction - b.damageReduction) > eps ||
+               Mathf.Abs(a.statusResistance - b.statusResistance) > eps ||
+               Mathf.Abs(a.criticalChance - b.criticalChance) > eps ||
+               Mathf.Abs(a.criticalDamage - b.criticalDamage) > eps ||
+               Mathf.Abs(a.afflictionChance - b.afflictionChance) > eps ||
+               Mathf.Abs(a.afflictionDamage - b.afflictionDamage) > eps ||
+               Mathf.Abs(a.etherealChance - b.etherealChance) > eps ||
+               Mathf.Abs(a.etherealDamage - b.etherealDamage) > eps ||
+               Mathf.Abs(a.demonicChance - b.demonicChance) > eps ||
+               Mathf.Abs(a.demonicDamage - b.demonicDamage) > eps ||
+               Mathf.Abs(a.inevitableChance - b.inevitableChance) > eps ||
+               Mathf.Abs(a.inevitableDamage - b.inevitableDamage) > eps ||
+               Mathf.Abs(a.moveSpeed - b.moveSpeed) > eps;
     }
 
     private void CheckForMouseInput()
@@ -300,6 +443,21 @@ public class NetworkedDomainController : MonoBehaviour
         {
             MapService.ApplyMapBuffs(gameObject);
             mapBuffsApplied = true;
+
+            // Map buffs modify stats directly (reflection). Ensure combat snapshot is resynced on the local client.
+            RequestCombatStatsResyncIfLocal();
         }
+    }
+
+    /// <summary>Server/attack handler: get combat stats for this player. Prefer client-sent snapshot so equipment and buffs are correct.</summary>
+    public CombatStatsSnapshot GetCombatStatsSnapshot()
+    {
+        if (syncPlayerStats != null)
+        {
+            var snapshot = syncPlayerStats.GetCombatStatsSnapshot();
+            if (snapshot.IsValid)
+                return snapshot;
+        }
+        return playerStatsManager != null ? CombatStatsSnapshot.From(playerStatsManager.playerStats) : default;
     }
 }

@@ -19,7 +19,12 @@ public class NetworkedPlayerCombatHelperController : NetworkBehaviour
     private bool isAttacking;
     private GameObject serverTarget;
 
+    /// <summary>Last target the local client selected (for ability intents). Server uses <see cref="serverTarget"/>.</summary>
+    private uint localTargetNetId;
+
     public bool IsAttacking => isAttacking;
+
+    public uint LocalTargetNetId => localTargetNetId;
 
     /// <summary>
     /// Called by the domain controller when the user clicks. Client sends target to server via Command.
@@ -32,9 +37,11 @@ public class NetworkedPlayerCombatHelperController : NetworkBehaviour
         var targetIdentity = hoveredObject.GetComponent<NetworkIdentity>();
         if (targetIdentity != null)
         {
+            localTargetNetId = targetIdentity.netId;
             CmdSetTarget(targetIdentity);
             return true;
         }
+        localTargetNetId = 0;
         serverTarget = hoveredObject;
         return true;
     }
