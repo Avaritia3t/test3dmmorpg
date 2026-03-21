@@ -8,26 +8,27 @@ using Mirror;
 /// </summary>
 public class NetworkedPlayerLootReceiver : NetworkBehaviour, IReceiveLoot
 {
-    private readonly List<Item> serverItems = new List<Item>();
-    private readonly List<Resource> serverResources = new List<Resource>();
-
+    private NetworkedPlayerInventory inventory;
     private IPlayerStatsService playerStatsService;
 
+    private NetworkedPlayerInventory Inventory => inventory ??= GetComponent<NetworkedPlayerInventory>();
     private IPlayerStatsService PlayerStatsService => playerStatsService ??= GetComponent<IPlayerStatsService>();
 
-    public IReadOnlyList<Item> ServerItems => serverItems;
-    public IReadOnlyList<Resource> ServerResources => serverResources;
+    /// <summary>Server-only mirror of bag contents (for debugging / tools). Prefer <see cref="IInventoryService"/> on the same player.</summary>
+    public IReadOnlyList<Item> ServerItems => Inventory != null ? Inventory.GetItems() : System.Array.Empty<Item>();
+
+    public IReadOnlyList<Resource> ServerResources => Inventory != null ? Inventory.GetResources() : System.Array.Empty<Resource>();
 
     public void AddResource(Resource resource)
     {
         if (!NetworkServer.active || resource == null) return;
-        serverResources.Add(resource);
+        Inventory?.ServerAddResource(resource);
     }
 
     public void AddItem(Item item)
     {
         if (!NetworkServer.active || item == null) return;
-        serverItems.Add(item);
+        Inventory?.ServerAddItem(item);
     }
 
     public void AddExperience(int amount)

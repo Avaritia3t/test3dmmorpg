@@ -3,6 +3,12 @@ using System.Collections;
 
 public class CanvasTransitionManager : MonoBehaviour, ICanvasTransitionService
 {
+    [Tooltip("Optional: additive scene to load after showing the background (e.g. game world). Leave empty to skip.")]
+    [SerializeField] private string additiveGameSceneName;
+
+    [Tooltip("If Mirror client is active, wait until NetworkClient.ready after scene load.")]
+    [SerializeField] private bool waitForMirrorClientReady = true;
+
     public CanvasGroup loginCanvasGroup;
     public CanvasGroup backPageCanvasGroup;
     public CanvasGroup blackScreenCanvasGroup;
@@ -70,6 +76,10 @@ public class CanvasTransitionManager : MonoBehaviour, ICanvasTransitionService
         yield return StartCoroutine(FadeOut(factionSelectionCanvasGroup, fadeDuration, null));
         yield return StartCoroutine(FadeIn(backPageCanvasGroup, fadeDuration));
         yield return StartCoroutine(FadeOut(blackScreenCanvasGroup, fadeDuration, null));
+
+        // ParrelSync / Mirror: start Host or Client from Network Manager HUD (or your UI) in each clone — no auto StartHost here.
+        // Stay on the background while the game scene loads and Mirror finishes client ready (if used).
+        yield return StartCoroutine(NetworkedLoadingGate.WaitForAsyncLoadAndMirrorReady(additiveGameSceneName, waitForMirrorClientReady));
     }
 
     private IEnumerator FadeOut(CanvasGroup canvasGroup, float duration, System.Action onComplete)

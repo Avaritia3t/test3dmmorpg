@@ -2,7 +2,7 @@ using UnityEngine;
 
 /// <summary>
 /// Serializable snapshot of combat stats used for server-side damage and effects.
-/// Client sends this to the server so equipment and map buffs are reflected in networked combat.
+/// Built from the server’s <see cref="PlayerStats"/> (equipment, map buffs) — not client-pushed.
 /// </summary>
 [System.Serializable]
 public struct CombatStatsSnapshot

@@ -24,16 +24,12 @@ public class NetworkedLootService : MonoBehaviour, INetworkedLootService
     {
         if (!NetworkServer.active || resource == null) return;
         GetReceiverForConnection(conn)?.AddResource(resource);
-        if (conn == NetworkServer.localConnection)
-            GameBootstrap.Locator?.Get<IInventoryService>()?.AddResource(resource);
     }
 
     public void AddItemForConnection(NetworkConnectionToClient conn, Item item)
     {
         if (!NetworkServer.active || item == null) return;
         GetReceiverForConnection(conn)?.AddItem(item);
-        if (conn == NetworkServer.localConnection)
-            GameBootstrap.Locator?.Get<IInventoryService>()?.AddItem(item);
     }
 
     public void AddExperienceForConnection(NetworkConnectionToClient conn, int amount)

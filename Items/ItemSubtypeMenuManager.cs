@@ -173,16 +173,17 @@ public class ItemSubtypeMenuManager : MonoBehaviour
                     {
                         Debug.Log($"Item to equip: {item.itemName}");
 
-                        inventory.RemoveItem(item);
-                        PlayerEquipmentService?.EquipItem(item);
+                        if (PlayerEquipmentService == null || !PlayerEquipmentService.EquipItem(item))
+                        {
+                            Debug.LogError($"Equip failed for {item.itemName}.");
+                            return;
+                        }
 
-                        // Call EquipItem in EquipmentPanelManager
+                        InventoryService.RemoveItem(item);
+
                         equipmentPanelManager.EquipItem(item);
 
                         UpdateUIOnRightClick(clickedObject, item);
-
-                        // Calculate and update equipment stats
-                        PlayerEquipmentService?.CalculateStatsAdditionFromEquipment(item);
 
                         // Update the DisplaySubtypes to reflect the current state
                         DisplaySubtypes(InventoryService.GetItemsBySubtype(item.itemType, item.subtype));

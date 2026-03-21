@@ -28,9 +28,22 @@ public class EquipmentPanelManager : MonoBehaviour
     private IInventoryService _inventoryService;
     private IPlayerStatsService _playerStatsService;
     private IPlayerEquipmentService _playerEquipmentService;
-    private IInventoryService InventoryService => _inventoryService ??= GameBootstrap.Locator?.Get<IInventoryService>();
-    private IPlayerStatsService PlayerStatsService => _playerStatsService ??= GameBootstrap.Locator?.Get<IPlayerStatsService>();
-    private IPlayerEquipmentService PlayerEquipmentService => _playerEquipmentService ??= GameBootstrap.Locator?.Get<IPlayerEquipmentService>();
+
+    private void Awake()
+    {
+        var locator = GameBootstrap.Locator;
+        if (locator != null)
+        {
+            _inventoryService = locator.Get<IInventoryService>();
+            _playerStatsService = locator.Get<IPlayerStatsService>();
+            _playerEquipmentService = locator.Get<IPlayerEquipmentService>();
+        }
+
+        if (itemSubtypeMenuManager == null)
+            itemSubtypeMenuManager = GetComponentInChildren<ItemSubtypeMenuManager>(true);
+        if (itemSubtypeMenuManager == null)
+            itemSubtypeMenuManager = transform.root.GetComponentInChildren<ItemSubtypeMenuManager>(true);
+    }
 
     private void Start()
     {
@@ -99,19 +112,16 @@ public class EquipmentPanelManager : MonoBehaviour
                 {
                     Debug.Log($"Item to unequip: {item.itemName}");
 
-                    if (InventoryService != null)
-                        InventoryService.AddItem(item);
-                    PlayerEquipmentService?.UnequipItem(item);
+                    if (_inventoryService != null)
+                        _inventoryService.AddItem(item);
+                    _playerEquipmentService?.UnequipItem(item);
 
                     // Remove from the Equipment UI
                     UpdateUIOnRightClick(clickedObject, item);
 
-                    // Calculate and update equipment stats
-                    PlayerEquipmentService?.CalculateStatsReductionFromEquipment(item);
-
                     // Update the DisplaySubtypes to reflect the current state
-                    if (InventoryService != null)
-                        itemSubtypeMenuManager.DisplaySubtypes(InventoryService.GetItemsBySubtype(item.itemType, item.subtype));
+                    if (_inventoryService != null)
+                        itemSubtypeMenuManager.DisplaySubtypes(_inventoryService.GetItemsBySubtype(item.itemType, item.subtype));
                 }
             }
         }
@@ -257,15 +267,15 @@ public class EquipmentPanelManager : MonoBehaviour
 
     private void PopulateSubtypeMenu(Item item)
     {
-        if (InventoryService == null) return;
-        List<Item> items = InventoryService.GetItemsBySubtype(item.itemType, item.subtype);
+        if (_inventoryService == null) return;
+        List<Item> items = _inventoryService.GetItemsBySubtype(item.itemType, item.subtype);
         itemSubtypeMenuManager.DisplaySubtypes(items);
     }
 
     private void UpdatePlayerStatsReadout()
     {
-        if (PlayerStatsService == null) return;
-        var playerStats = PlayerStatsService.playerStats;
+        if (_playerStatsService == null) return;
+        var playerStats = _playerStatsService.playerStats;
         if (playerStatsReadoutText != null)
         {
             playerStatsReadoutText.text = FormatPlayerStats(playerStats);

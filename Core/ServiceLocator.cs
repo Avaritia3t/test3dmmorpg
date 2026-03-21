@@ -31,4 +31,10 @@ public class ServiceLocator
         service = Get<T>();
         return service != null;
     }
+
+    /// <summary>Remove a registration (e.g. when local player unloads).</summary>
+    public void Unregister<T>() where T : class
+    {
+        _services.Remove(typeof(T));
+    }
 }

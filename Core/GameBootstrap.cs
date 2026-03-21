@@ -1,5 +1,6 @@
 using UnityEngine;
 
+/// <summary>Runs after <see cref="NetworkedGameBootstrap"/> when both exist (-1000 vs -1001).</summary>
 [DefaultExecutionOrder(-1000)]
 public class GameBootstrap : MonoBehaviour
 {
@@ -7,6 +8,7 @@ public class GameBootstrap : MonoBehaviour
 
     private void Awake()
     {
+        // NetworkedGameBootstrap may have already created and assigned Locator.
         if (Locator == null)
             Locator = new ServiceLocator();
     }

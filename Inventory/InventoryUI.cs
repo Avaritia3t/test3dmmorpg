@@ -36,9 +36,11 @@ public class InventoryUI : MonoBehaviour
 
     private IInventoryService _inventoryService;
     private IPlayerStatsService _playerStatsService;
+    private IPlayerEquipmentService _playerEquipmentService;
     private ITooltipService _tooltipService;
     private IInventoryService InventoryService => _inventoryService ??= GameBootstrap.Locator?.Get<IInventoryService>();
     private IPlayerStatsService PlayerStatsService => _playerStatsService ??= GameBootstrap.Locator?.Get<IPlayerStatsService>();
+    private IPlayerEquipmentService PlayerEquipmentService => _playerEquipmentService ??= GameBootstrap.Locator?.Get<IPlayerEquipmentService>();
     private ITooltipService TooltipService => _tooltipService ??= GameBootstrap.Locator?.Get<ITooltipService>();
 
     private void Start()
@@ -553,19 +555,21 @@ public class InventoryUI : MonoBehaviour
             return;
         }
 
-        // Equip the item: move the icon to the equipment slot and clear the subtype slot
+        if (PlayerEquipmentService == null || !PlayerEquipmentService.EquipItem(item))
+        {
+            Debug.LogWarning($"[InventoryUI] EquipItem failed for {item?.itemName} (no slot or invalid).");
+            return;
+        }
+
+        if (InventoryService != null)
+            InventoryService.RemoveItem(item);
+
+        // Move the icon to the equipment slot and clear the subtype slot
         emptySlot.sprite = item.icon;
         emptySlot.color = Color.white;
 
         subtypeSlot.sprite = null;
         subtypeSlot.color = new Color(1, 1, 1, 0); // Set to transparent
-
-        // Optionally, update item data in your inventory/equipment system
-
-        if (InventoryService != null)
-            InventoryService.RemoveItem(item);
-        if (PlayerStatsService != null)
-            PlayerStatsService.EquipItem(item);
     }
 
     private void UnequipItem(Item item, GameObject equippedSlot)
@@ -602,19 +606,19 @@ public class InventoryUI : MonoBehaviour
             return;
         }
 
-        // Unequip the item: move the icon back to the subtype slot and clear the equipment slot
-        emptySubtypeSlot.sprite = item.icon;
-        emptySubtypeSlot.color = Color.white;
-
-        equippedIcon.sprite = null;
-        equippedIcon.color = new Color(1, 1, 1, 0); // Set to transparent
+        if (PlayerEquipmentService == null || !PlayerEquipmentService.UnequipItem(item))
+        {
+            Debug.LogWarning($"[InventoryUI] UnequipItem failed for {item?.itemName}.");
+            return;
+        }
 
         if (InventoryService != null)
             InventoryService.AddItem(item);
-        if (PlayerStatsService != null)
-            PlayerStatsService.UnequipItem(item);
 
-        // Set the item as equippable again
+        emptySubtypeSlot.sprite = item.icon;
+        emptySubtypeSlot.color = Color.white;
+        equippedIcon.sprite = null;
+        equippedIcon.color = new Color(1, 1, 1, 0); // Set to transparent
         item.isEquippable = true;
 
         // Optionally, update item data in your inventory/equipment system

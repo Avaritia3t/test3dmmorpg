@@ -1,15 +1,15 @@
 using UnityEngine;
 
+/// <summary>
+/// Reserved for player-scoped services registered at bootstrap (e.g. offline defaults).
+/// Networked per-player services like <see cref="IPlayerStatsService"/> are registered when the local player spawns
+/// (<see cref="NetworkedLocalPlayerServiceRegistrar"/>).
+/// </summary>
 public static class PlayerStartup
 {
     public static void Configure(ServiceLocator locator)
     {
-        var stats = Object.FindObjectOfType<PlayerStatsManager>();
-        if (stats != null)
-            locator.Register<IPlayerStatsService>(stats);
-
-        var equipment = Object.FindObjectOfType<PlayerEquipmentManager>();
-        if (equipment != null)
-            locator.Register<IPlayerEquipmentService>(equipment);
+        // IPlayerStatsService / IPlayerEquipmentService are registered by the local player's
+        // NetworkedLocalPlayerServiceRegistrar when the local NetworkIdentity spawns (not FindObjectOfType).
     }
 }

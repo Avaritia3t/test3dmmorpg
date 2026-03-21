@@ -3,7 +3,7 @@ using Mirror;
 
 /// <summary>
 /// Third-person camera that follows the local player. Uses NetworkClient.localPlayer when Mirror is active.
-/// Required: one instance in scene (e.g. on main camera or a camera rig). No component requirements on player.
+/// Player position/rotation are authoritative on the server and replicated (add NetworkTransform on the player prefab).
 /// </summary>
 public class NetworkedCameraController : MonoBehaviour
 {

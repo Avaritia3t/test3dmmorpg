@@ -15,8 +15,20 @@ public class InventoryPanelManager : MonoBehaviour
 
     private IInventoryService _inventoryService;
     private ITooltipService _tooltipService;
-    private IInventoryService InventoryService => _inventoryService ??= GameBootstrap.Locator?.Get<IInventoryService>();
-    private ITooltipService TooltipService => _tooltipService ??= GameBootstrap.Locator?.Get<ITooltipService>();
+
+    private void Awake()
+    {
+        var locator = GameBootstrap.Locator;
+        if (locator != null)
+        {
+            _inventoryService = locator.Get<IInventoryService>();
+            _tooltipService = locator.Get<ITooltipService>();
+        }
+
+        itemSubtypeMenuManager = GetComponentInChildren<ItemSubtypeMenuManager>(true);
+        if (itemSubtypeMenuManager == null)
+            itemSubtypeMenuManager = transform.root.GetComponentInChildren<ItemSubtypeMenuManager>(true);
+    }
 
     private void Start()
     {
@@ -86,7 +98,7 @@ public class InventoryPanelManager : MonoBehaviour
 
         if (filteredResults.Count == 0)
         {
-            TooltipService?.HideTooltip();
+            _tooltipService?.HideTooltip();
             return;
         }
 
@@ -97,7 +109,7 @@ public class InventoryPanelManager : MonoBehaviour
             {
                 string itemName = hoveredObject.name.Replace("SlotImage", "");
                 string content = GetTooltipContent(itemName);
-                TooltipService?.ShowTooltip(content);
+                _tooltipService?.ShowTooltip(content);
 
                 if (Input.GetMouseButtonDown(0))
                 {
@@ -133,7 +145,7 @@ public class InventoryPanelManager : MonoBehaviour
             }
         }
 
-        TooltipService?.HideTooltip();
+        _tooltipService?.HideTooltip();
     }
 
     private string GetTooltipContent(string itemName)
@@ -145,16 +157,16 @@ public class InventoryPanelManager : MonoBehaviour
         RuneType runeType;
         string content = "";
 
-        if (InventoryService == null) return content;
+        if (_inventoryService == null) return content;
 
         if (System.Enum.TryParse(itemName, out resourceType))
         {
-            int quantity = InventoryService.GetResourceQuantity(resourceType);
+            int quantity = _inventoryService.GetResourceQuantity(resourceType);
             content = $"{resourceType}\nQuantity: {quantity}";
         }
         else if (System.Enum.TryParse(itemName, out weaponType))
         {
-            int quantity = InventoryService.GetItemQuantity(ItemType.Weapon, itemName);
+            int quantity = _inventoryService.GetItemQuantity(ItemType.Weapon, itemName);
             content = $"{weaponType}\nQuantity: {quantity}";
         }
         else if (System.Enum.TryParse(itemName, out phalanxType))
@@ -164,7 +176,7 @@ public class InventoryPanelManager : MonoBehaviour
         }
         else if (System.Enum.TryParse(itemName, out artefactType))
         {
-            int quantity = InventoryService.GetItemQuantity(ItemType.Artefact, itemName);
+            int quantity = _inventoryService.GetItemQuantity(ItemType.Artefact, itemName);
             content = $"{artefactType}\nQuantity: {quantity}";
         }
         else if (System.Enum.TryParse(itemName, out runeType))
@@ -183,10 +195,10 @@ public class InventoryPanelManager : MonoBehaviour
 
     private void PopulateItemSubtypeMenu(ItemType itemType, string subtype)
     {
-        if (InventoryService == null) return;
+        if (_inventoryService == null) return;
 
         Debug.Log("Inside PopulateItemSubtypeMenu function");
-        List<Item> items = InventoryService.GetItemsBySubtype(itemType, subtype);
+        List<Item> items = _inventoryService.GetItemsBySubtype(itemType, subtype);
 
         Debug.Log($"Found {items.Count} items of subtype {subtype}");
         foreach (var item in items)

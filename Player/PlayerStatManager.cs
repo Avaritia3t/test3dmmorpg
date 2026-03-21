@@ -8,8 +8,7 @@ public class PlayerStatsManager : MonoBehaviour, IPlayerStatsService
     private Dictionary<string, PropertyInfo> statProperties;
 
     /// <summary>
-    /// Raised when this player's stats are changed via server-side equipment operations on this client copy
-    /// (e.g. EquipItem / UnequipItem). Networked combat can use this to resync derived combat stats.
+    /// Raised when stats change (equipment modifiers, load, etc.). Networked combat resyncs from this.
     /// </summary>
     public event System.Action StatsChanged;
 
@@ -35,52 +34,28 @@ public class PlayerStatsManager : MonoBehaviour, IPlayerStatsService
         return statProperties;
     }
 
-    public bool EquipItem(Item item)
+    /// <inheritdoc />
+    public void ApplyEquipmentStatModifiers(Item item)
     {
-        foreach (var slot in playerStats.equipmentSlots)
-        {
-            if (slot.slotType.ToString() == item.itemType.ToString() && slot.EquipItem(item))
-            {
-                ApplyItemStats(item);
-                item.isEquippable = true;
-                SaveStats();
-                StatsChanged?.Invoke();
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public bool UnequipItem(Item item)
-    {
-        foreach (var slot in playerStats.equipmentSlots)
-        {
-            if (slot.slotType.ToString() == item.itemType.ToString() && slot.UnequipItem(item))
-            {
-                RemoveItemStats(item);
-                item.isEquippable = false;
-                SaveStats();
-                StatsChanged?.Invoke();
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private void ApplyItemStats(Item item)
-    {
+        if (item?.stats == null)
+            return;
         foreach (var stat in item.stats)
-        {
             ApplyStatModifier(stat);
-        }
+        item.isEquippable = true;
+        SaveStats();
+        StatsChanged?.Invoke();
     }
 
-    private void RemoveItemStats(Item item)
+    /// <inheritdoc />
+    public void RemoveEquipmentStatModifiers(Item item)
     {
+        if (item?.stats == null)
+            return;
         foreach (var stat in item.stats)
-        {
             RemoveStatModifier(stat);
-        }
+        item.isEquippable = false;
+        SaveStats();
+        StatsChanged?.Invoke();
     }
 
     private void ApplyStatModifier(ItemStat stat)

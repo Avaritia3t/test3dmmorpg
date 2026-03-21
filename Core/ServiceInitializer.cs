@@ -22,8 +22,16 @@ public static class ServiceInitializer
         Debug.Log("[ServiceInitializer] --- Service status ---");
 
         LogService(locator, "IMapService", () => locator.Get<IMapService>() != null);
-        LogService(locator, "IPlayerStatsService", () => locator.Get<IPlayerStatsService>() != null);
-        LogService(locator, "IPlayerEquipmentService", () => locator.Get<IPlayerEquipmentService>() != null);
+        if (requireNetworked)
+        {
+            LogOptionalUntilLocalPlayerSpawned(locator, "IPlayerStatsService", () => locator.Get<IPlayerStatsService>() != null);
+            LogOptionalUntilLocalPlayerSpawned(locator, "IPlayerEquipmentService", () => locator.Get<IPlayerEquipmentService>() != null);
+        }
+        else
+        {
+            LogService(locator, "IPlayerStatsService", () => locator.Get<IPlayerStatsService>() != null);
+            LogService(locator, "IPlayerEquipmentService", () => locator.Get<IPlayerEquipmentService>() != null);
+        }
         LogService(locator, "IInventoryService", () => locator.Get<IInventoryService>() != null);
         LogService(locator, "IDropRulesService", () => locator.Get<IDropRulesService>() != null);
         LogService(locator, "ITooltipService", () => locator.Get<ITooltipService>() != null);
@@ -39,6 +47,15 @@ public static class ServiceInitializer
         }
 
         Debug.Log("[ServiceInitializer] --- End service status ---");
+    }
+
+    private static void LogOptionalUntilLocalPlayerSpawned(ServiceLocator locator, string name, System.Func<bool> check)
+    {
+        bool ok = check();
+        if (ok)
+            Debug.Log($"[ServiceInitializer] {name}: OK");
+        else
+            Debug.Log($"[ServiceInitializer] {name}: not yet (expected after local player spawns / NetworkedLocalPlayerServiceRegistrar).");
     }
 
     private static void LogService(ServiceLocator locator, string name, System.Func<bool> check)

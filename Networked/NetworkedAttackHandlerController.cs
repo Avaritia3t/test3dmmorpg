@@ -1,4 +1,5 @@
 using System.Collections;
+using Mirror;
 using UnityEngine;
 
 /// <summary>
@@ -88,7 +89,7 @@ public class NetworkedAttackHandlerController : MonoBehaviour
         if (networkedDomain != null)
         {
             networkedDomain.TakeDamage(hpDamage, shieldDamage);
-            // Debug.Log("[NetworkedAttackHandlerController] Applied damage to " + target.name);
+            RegisterAttackerCombatIfPlayer(attacker, hpDamage, shieldDamage);
             return;
         }
 
@@ -96,11 +97,21 @@ public class NetworkedAttackHandlerController : MonoBehaviour
         if (networkedSubdomain != null)
         {
             networkedSubdomain.TakeDamage(hpDamage, shieldDamage, attacker);
-            // Debug.Log("[NetworkedAttackHandlerController] Applied damage to " + target.name);
+            RegisterAttackerCombatIfPlayer(attacker, hpDamage, shieldDamage);
             return;
         }
 
         Debug.LogError("[NetworkedAttackHandlerController] ApplyDamage failed: Target does not have NetworkedDomainController or NetworkedSubdomainController");
+    }
+
+    private static void RegisterAttackerCombatIfPlayer(GameObject attacker, float hpDamage, float shieldDamage)
+    {
+        if (!NetworkServer.active || attacker == null)
+            return;
+        if (Mathf.Abs(hpDamage) + Mathf.Abs(shieldDamage) <= 0.0001f)
+            return;
+        var sync = attacker.GetComponent<SyncPlayerStats>();
+        sync?.ServerRegisterCombatActivity();
     }
 
     private IEnumerator ApplyAffliction(GameObject target, float afflictionDamage, float duration)

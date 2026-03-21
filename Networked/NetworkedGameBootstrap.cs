@@ -1,37 +1,35 @@
 using UnityEngine;
 
 /// <summary>
-/// Bootstrap for networked games: builds ServiceLocator and sets GameBootstrap.Locator so all scripts can use it.
-/// Required: one instance in scene (e.g. on same GameObject as GameNetworkManager). Runs all Startup.Configure then validates services.
+/// Bootstrap for networked games: ensures <see cref="GameBootstrap.Locator"/> exists and runs Startup.Configure.
+/// Use <see cref="GameBootstrap.Locator"/> only (no separate static here).
+/// Required: one instance in scene (e.g. on same GameObject as GameNetworkManager). Runs before <see cref="GameBootstrap"/>.
 /// </summary>
-[DefaultExecutionOrder(-1000)]
+[DefaultExecutionOrder(-1001)]
 public class NetworkedGameBootstrap : MonoBehaviour
 {
-    public static ServiceLocator Locator { get; private set; }
-
     private void Awake()
     {
-        if (Locator == null)
-            Locator = new ServiceLocator();
-        // So scripts that reference GameBootstrap.Locator work in networked scenes
-        GameBootstrap.Locator = Locator;
+        if (GameBootstrap.Locator == null)
+            GameBootstrap.Locator = new ServiceLocator();
     }
 
     private void Start()
     {
-        if (Locator == null)
+        var locator = GameBootstrap.Locator;
+        if (locator == null)
             return;
 
-        CoreStartup.Configure(Locator);
-        CombatStartup.Configure(Locator);
-        PlayerStartup.Configure(Locator);
-        WorldStartup.Configure(Locator);
-        InventoryStartup.Configure(Locator);
-        ItemsStartup.Configure(Locator);
-        DataStartup.Configure(Locator);
-        UIStartup.Configure(Locator);
-        SceneStartup.Configure(Locator);
+        CoreStartup.Configure(locator);
+        CombatStartup.Configure(locator);
+        PlayerStartup.Configure(locator);
+        WorldStartup.Configure(locator);
+        InventoryStartup.Configure(locator);
+        ItemsStartup.Configure(locator);
+        DataStartup.Configure(locator);
+        UIStartup.Configure(locator);
+        SceneStartup.Configure(locator);
 
-        ServiceInitializer.ValidateAndLogServices(Locator, requireNetworked: true);
+        ServiceInitializer.ValidateAndLogServices(locator, requireNetworked: true);
     }
 }

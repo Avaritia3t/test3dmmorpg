@@ -1,141 +1,163 @@
-using UnityEngine;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
+using UnityEngine;
 
+/// <summary>
+/// Single equip pipeline: update equipment slots on <see cref="IPlayerStatsService.playerStats"/>,
+/// then apply/remove stat deltas through <see cref="IPlayerStatsService.ApplyEquipmentStatModifiers"/> /
+/// <see cref="IPlayerStatsService.RemoveEquipmentStatModifiers"/> (implemented by <see cref="PlayerStatsManager"/>).
+/// <see cref="EquipmentStats"/> tracks totals from equipment only (UI/debug). All numeric player changes go through stats service.
+/// <para>
+/// Optional: server Command wrapper in NetworkedPlayerEquipment.cs when that file is compiled (#if true).
+/// </para>
+/// </summary>
 public class PlayerEquipmentManager : MonoBehaviour, IPlayerEquipmentService
 {
     public List<Item> equippedItems = new List<Item>();
     public PlayerStats EquipmentStats { get; private set; }
-    private Dictionary<string, PropertyInfo> statProperties;
 
+    private Dictionary<string, PropertyInfo> statProperties;
     private IPlayerStatsService _playerStatsService;
-    private IPlayerStatsService PlayerStatsService => _playerStatsService ??= GameBootstrap.Locator?.Get<IPlayerStatsService>();
+
+    private IPlayerStatsService PlayerStatsService => _playerStatsService ??= GetComponent<IPlayerStatsService>();
 
     private void Awake()
     {
         EquipmentStats = new PlayerStats();
         DontDestroyOnLoad(gameObject);
+        _playerStatsService = GetComponent<IPlayerStatsService>();
     }
 
     private void Start()
     {
         EquipmentStats = new PlayerStats();
-        ResetEquipmentStats(); // Ensure all stats are set to zero
+        ResetEquipmentStats();
         statProperties = PlayerStatsService?.GetStatProperties();
     }
 
-    public void EquipItem(Item item)
+    public bool EquipItem(Item item)
     {
-        Debug.Log($"Equipping item: {item.itemName}");
+        if (item == null || PlayerStatsService == null)
+            return false;
 
-        if (PlayerStatsService == null) return;
         foreach (var slot in PlayerStatsService.playerStats.equipmentSlots)
         {
-            if (slot.slotType.ToString() == item.itemType.ToString() && slot.EquipItem(item))
-            {
-                return;
-            }
+            if (slot.slotType.ToString() != item.itemType.ToString())
+                continue;
+            if (!slot.EquipItem(item))
+                continue;
+
+            PlayerStatsService.ApplyEquipmentStatModifiers(item);
+            AddEquipmentStatsOnly(item);
+            if (!equippedItems.Contains(item))
+                equippedItems.Add(item);
+            return true;
         }
+
+        return false;
     }
 
-    public void UnequipItem(Item item)
+    public bool UnequipItem(Item item)
     {
-        Debug.Log($"Unequipping item: {item.itemName}");
+        if (item == null || PlayerStatsService == null)
+            return false;
 
-        if (PlayerStatsService == null) return;
         foreach (var slot in PlayerStatsService.playerStats.equipmentSlots)
         {
-            if (slot.slotType.ToString() == item.itemType.ToString() && slot.UnequipItem(item))
+            if (slot.slotType.ToString() != item.itemType.ToString())
+                continue;
+            if (!slot.UnequipItem(item))
+                continue;
+
+            PlayerStatsService.RemoveEquipmentStatModifiers(item);
+            RemoveEquipmentStatsOnly(item);
+            equippedItems.Remove(item);
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>Server: find an equipped item matching identity fields (for Command unequip).</summary>
+    public Item FindEquippedItemMatching(string itemName, ItemType itemType, string subtype, int level)
+    {
+        if (PlayerStatsService == null)
+            return null;
+        string st = subtype ?? "";
+        foreach (var slot in PlayerStatsService.playerStats.equipmentSlots)
+        {
+            foreach (var it in slot.equippedItems)
             {
-                return;
+                if (it == null)
+                    continue;
+                if (it.itemName == itemName && it.itemType == itemType && it.level == level && (it.subtype ?? "") == st)
+                    return it;
             }
         }
-    }
-
-    public void CalculateStatsAdditionFromEquipment(Item item)
-    {
-        // Add stats from the specified item
-        foreach (var stat in item.stats)
-        {
-            AddStatToEquipmentStats(stat);
-        }
-    }
-
-    public void CalculateStatsReductionFromEquipment(Item item)
-    {
-        // Subtract stats from the specified item
-        foreach (var stat in item.stats)
-        {
-            RemoveStatFromEquipmentStats(stat);
-        }
+        return null;
     }
 
     private void ResetEquipmentStats()
     {
-        if (PlayerStatsService == null) return;
+        if (PlayerStatsService == null)
+            return;
         statProperties = PlayerStatsService.GetStatProperties();
-        if (statProperties == null) return;
+        if (statProperties == null)
+            return;
 
         foreach (var property in statProperties.Values)
         {
             if (property.PropertyType == typeof(float))
-            {
                 property.SetValue(EquipmentStats, 0f);
-            }
         }
     }
 
-    private void AddStatToEquipmentStats(ItemStat stat)
+    private void AddEquipmentStatsOnly(Item item)
     {
-        if (PlayerStatsService == null || statProperties == null) return;
-        if (statProperties.TryGetValue(stat.statName, out var property))
-        {
-            float currentEquipmentValue = (float)property.GetValue(EquipmentStats);
-            float currentPlayerValue = (float)property.GetValue(PlayerStatsService.playerStats);
-            property.SetValue(EquipmentStats, currentEquipmentValue + stat.statValue);
-            property.SetValue(PlayerStatsService.playerStats, currentPlayerValue + stat.statValue);
-            Debug.Log($"Equipment stat updated: {stat.statName}, New Equipment Value: {currentEquipmentValue + stat.statValue}, New Player Value: {currentPlayerValue + stat.statValue}");
-        }
-        else
-        {
-            Debug.LogWarning($"Stat not found: {stat.statName}");
-        }
+        if (item?.stats == null || statProperties == null)
+            return;
+        foreach (var stat in item.stats)
+            AddEquipmentStatOnly(stat);
     }
 
-    private void RemoveStatFromEquipmentStats(ItemStat stat)
+    private void AddEquipmentStatOnly(ItemStat stat)
     {
-        if (PlayerStatsService == null || statProperties == null) return;
-        if (statProperties.TryGetValue(stat.statName, out var property))
+        if (statProperties == null || !statProperties.TryGetValue(stat.statName, out var property))
         {
-            float currentEquipmentValue = (float)property.GetValue(EquipmentStats);
-            float currentPlayerValue = (float)property.GetValue(PlayerStatsService.playerStats);
-            float newEquipmentValue = currentEquipmentValue - stat.statValue;
-            float newPlayerValue = currentPlayerValue - stat.statValue;
-            property.SetValue(EquipmentStats, newEquipmentValue);
-            property.SetValue(PlayerStatsService.playerStats, newPlayerValue);
-            Debug.Log($"Removing stat: {stat.statName}, New Equipment Value: {newEquipmentValue}, New Player Value: {newPlayerValue}");
+            Debug.LogWarning($"[PlayerEquipmentManager] Stat not found: {stat.statName}");
+            return;
         }
-        else
-        {
-            Debug.LogWarning($"Stat not found: {stat.statName}");
-        }
+
+        float currentEquipmentValue = (float)property.GetValue(EquipmentStats);
+        property.SetValue(EquipmentStats, currentEquipmentValue + stat.statValue);
     }
 
-    private string GetPlayerStatsSummary()
+    private void RemoveEquipmentStatsOnly(Item item)
     {
-        if (PlayerStatsService == null) return "";
-        var stats = PlayerStatsService.playerStats;
-        var props = PlayerStatsService.GetStatProperties();
-        if (props == null) return "";
-        return string.Join(", ", props.Keys.Select(statName => $"{statName}: {(float)props[statName].GetValue(stats)}"));
+        if (item?.stats == null || statProperties == null)
+            return;
+        foreach (var stat in item.stats)
+            RemoveEquipmentStatOnly(stat);
+    }
+
+    private void RemoveEquipmentStatOnly(ItemStat stat)
+    {
+        if (statProperties == null || !statProperties.TryGetValue(stat.statName, out var property))
+        {
+            Debug.LogWarning($"[PlayerEquipmentManager] Stat not found: {stat.statName}");
+            return;
+        }
+
+        float currentEquipmentValue = (float)property.GetValue(EquipmentStats);
+        property.SetValue(EquipmentStats, currentEquipmentValue - stat.statValue);
     }
 
     public void LogPlayerEquipment()
     {
         Debug.Log("Logging Player Equipment:");
 
-        if (PlayerStatsService == null) return;
+        if (PlayerStatsService == null)
+            return;
         var equipmentSlots = PlayerStatsService.playerStats.equipmentSlots;
 
         foreach (var slot in equipmentSlots)
@@ -145,9 +167,7 @@ public class PlayerEquipmentManager : MonoBehaviour, IPlayerEquipmentService
             {
                 Debug.Log($" - Equipped Item: {equippedItem.itemName}, Type: {equippedItem.itemType}, Rarity: {equippedItem.itemRarity}, Level: {equippedItem.level}");
                 foreach (var stat in equippedItem.stats)
-                {
                     Debug.Log($" -- Stat: {stat.statName}, Value: {stat.statValue}");
-                }
             }
         }
     }

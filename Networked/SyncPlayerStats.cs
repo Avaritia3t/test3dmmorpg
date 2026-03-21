@@ -23,6 +23,13 @@ public class SyncPlayerStats : NetworkBehaviour
     [SyncVar]
     public float syncMoveSpeed;
 
+    /// <summary>Server-authoritative: true while this player has dealt or taken damage in the last <see cref="CombatActivityWindowSeconds"/> (for no-logout-in-combat, UI, etc.).</summary>
+    [SyncVar]
+    public bool inCombat;
+
+    /// <summary>How long after the last deal/take damage event <see cref="inCombat"/> stays true. See <see cref="CombatActivityRules"/>.</summary>
+    public const float CombatActivityWindowSeconds = CombatActivityRules.InCombatWindowSeconds;
+
     /// <summary>Server: set authoritative move speed (computed from server-side stats).</summary>
     public void ServerSetMoveSpeed(float value)
     {
@@ -54,25 +61,33 @@ public class SyncPlayerStats : NetworkBehaviour
         currentShield = Mathf.Clamp(value, 0f, baseShield);
     }
 
-    // Server-only: combat stats sent by client so server uses up-to-date modifiers (equipment, map buffs)
-    private CombatStatsSnapshot serverCombatStats;
-
-    /// <summary>Client (local player): send current combat stats to server so attacks use correct modifiers.</summary>
-    public void SendCombatStats(CombatStatsSnapshot snapshot)
-    {
-        if (isLocalPlayer)
-            CmdSetCombatStats(snapshot);
-    }
-
-    [Command]
-    private void CmdSetCombatStats(CombatStatsSnapshot snapshot)
-    {
-        serverCombatStats = snapshot;
-    }
-
-    /// <summary>Server: get combat stats for this player (from client snapshot, or default).</summary>
+    /// <summary>
+    /// Server: combat snapshot from authoritative <see cref="PlayerStatsManager"/> on this object.
+    /// Client: local <see cref="PlayerStats"/> for UI only — damage/attacks use server state.
+    /// </summary>
     public CombatStatsSnapshot GetCombatStatsSnapshot()
     {
-        return serverCombatStats;
+        var psm = GetComponent<PlayerStatsManager>();
+        return psm != null ? CombatStatsSnapshot.From(psm.playerStats) : default;
+    }
+
+    private float serverLastCombatActivityTime = -999f;
+
+    /// <summary>Server only: call when this player deals or takes non-zero damage.</summary>
+    public void ServerRegisterCombatActivity()
+    {
+        if (!isServer)
+            return;
+        serverLastCombatActivityTime = Time.time;
+        if (!inCombat)
+            inCombat = true;
+    }
+
+    private void Update()
+    {
+        if (!isServer || !inCombat)
+            return;
+        if (Time.time - serverLastCombatActivityTime > CombatActivityRules.InCombatWindowSeconds)
+            inCombat = false;
     }
 }

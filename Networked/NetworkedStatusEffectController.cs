@@ -303,9 +303,16 @@ public class NetworkedStatusEffectController : MonoBehaviour
 
     private void ApplyDamageToHost(float hpDamage, float shieldDamage)
     {
+        float mag = Mathf.Abs(hpDamage) + Mathf.Abs(shieldDamage);
+
         if (domain != null)
         {
             domain.TakeDamage(hpDamage, shieldDamage);
+            if (mag > 0.0001f && damageSource != null)
+            {
+                var sync = damageSource.GetComponent<SyncPlayerStats>();
+                sync?.ServerRegisterCombatActivity();
+            }
             return;
         }
 
@@ -313,6 +320,11 @@ public class NetworkedStatusEffectController : MonoBehaviour
         {
             var src = damageSource != null ? damageSource : gameObject;
             subdomain.TakeDamage(hpDamage, shieldDamage, src);
+            if (mag > 0.0001f && damageSource != null)
+            {
+                var sync = damageSource.GetComponent<SyncPlayerStats>();
+                sync?.ServerRegisterCombatActivity();
+            }
         }
     }
 

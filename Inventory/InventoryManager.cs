@@ -11,7 +11,7 @@ public class InventoryManager : MonoBehaviour, IInventoryService
 
     private void Awake()
     {
-        DontDestroyOnLoad(gameObject);
+        // Do not use DontDestroyOnLoad here — multiplayer uses per-player NetworkedPlayerInventory on the player prefab.
         playerResources = new List<Resource>();
         playerItems = new List<Item>();
         equippedItems = new List<Item>();

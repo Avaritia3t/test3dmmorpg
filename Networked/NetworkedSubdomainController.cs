@@ -534,6 +534,28 @@ public class NetworkedSubdomainController : MonoBehaviour
             return;
         }
 
+        // No loot service singleton: still route to the attacking player's receiver (per-connection inventory).
+        if (conn != null)
+        {
+            var recv = conn.identity != null ? conn.identity.GetComponent<IReceiveLoot>() : null;
+            if (recv != null)
+            {
+                foreach (var resource in resources)
+                {
+                    recv.AddResource(resource);
+                    resource.quantity = 0;
+                }
+                if (spawnedItems != null)
+                {
+                    foreach (var item in spawnedItems)
+                        recv.AddItem(item);
+                    spawnedItems.Clear();
+                }
+                recv.AddExperience(CalculateExpReward());
+                return;
+            }
+        }
+
         if (InventoryService == null) return;
         foreach (var resource in resources)
         {

@@ -6,6 +6,7 @@ using Mirror;
 /// <summary>
 /// Player controller for networked games: movement (local input), map buffs, combat via NetworkedPlayerCombatHelperController.
 /// Required: on player prefab, with NetworkIdentity, SyncPlayerStats, NetworkedPlayerCombatHelperController, NavMeshAgent, PlayerStatsManager.
+/// Mirror + ParrelSync: local NavMesh click-to-move + NetworkTransform (see <see cref="NetworkedPlayerMovement"/> when enabling strict server movement).
 /// Optional: NetworkedPlayerLootReceiver for receiving server-routed loot.
 /// </summary>
 public class NetworkedDomainController : MonoBehaviour
@@ -21,14 +22,6 @@ public class NetworkedDomainController : MonoBehaviour
     private bool mapBuffsApplied;
     private float lastAttackedTime;
     private Coroutine regenerateCoroutine;
-    private float lastCombatStatsSendTime;
-    private const float CombatStatsSendInterval = 0.1f;
-
-    // Combat snapshot sending optimization
-    private bool combatStatsSendPending;
-    private bool hasLastSentCombatStats;
-    private CombatStatsSnapshot lastSentCombatStats;
-
     // Combat (delegated to helper)
     private NetworkedPlayerCombatHelperController combatHelper;
 
@@ -75,17 +68,6 @@ public class NetworkedDomainController : MonoBehaviour
         InitializeAgent();
         ApplyMapBuffs();
 
-        // Subscribe to client-side equipment changes so we only send snapshots when stats actually change.
-        if (playerStatsManager != null)
-            playerStatsManager.StatsChanged += OnPlayerStatsChanged;
-
-        RequestCombatStatsResyncIfLocal();
-    }
-
-    private void OnDestroy()
-    {
-        if (playerStatsManager != null)
-            playerStatsManager.StatsChanged -= OnPlayerStatsChanged;
     }
 
     private void Start()
@@ -133,27 +115,6 @@ public class NetworkedDomainController : MonoBehaviour
         CheckForMouseInput();
         CheckForKeyboardInput();
         TickCombat();
-
-        // Send snapshots only when there's a pending change, not every frame.
-        if (combatStatsSendPending && Time.time - lastCombatStatsSendTime >= CombatStatsSendInterval)
-            TrySendCombatStatsToServer();
-    }
-
-    private void OnPlayerStatsChanged()
-    {
-        combatStatsSendPending = true;
-        if (networkIdentity != null && networkIdentity.isLocalPlayer)
-        {
-            // Attempt immediate send to reduce staleness after equip/unequip.
-            if (Time.time - lastCombatStatsSendTime >= CombatStatsSendInterval)
-                TrySendCombatStatsToServer();
-        }
-    }
-
-    private void RequestCombatStatsResyncIfLocal()
-    {
-        if (networkIdentity != null && networkIdentity.isLocalPlayer)
-            combatStatsSendPending = true;
     }
 
     /// <summary>Server: compute move speed from server-side stats and sync to clients. Client: apply server's syncMoveSpeed.</summary>
@@ -198,55 +159,6 @@ public class NetworkedDomainController : MonoBehaviour
         // Root should stop path following immediately.
         if (agent != null)
             agent.isStopped = rooted;
-    }
-
-    /// <summary>
-    /// Local player only: push combat stats to server when they change.
-    /// Uses last-sent comparison to avoid resending identical snapshots.
-    /// </summary>
-    private void TrySendCombatStatsToServer()
-    {
-        if (networkIdentity == null || !networkIdentity.isLocalPlayer || syncPlayerStats == null || playerStatsManager == null)
-            return;
-
-        var newSnapshot = CombatStatsSnapshot.From(playerStatsManager.playerStats);
-        if (!newSnapshot.IsValid)
-            return;
-
-        if (hasLastSentCombatStats && !IsDifferent(newSnapshot, lastSentCombatStats))
-        {
-            combatStatsSendPending = false;
-            return;
-        }
-
-        lastCombatStatsSendTime = Time.time;
-        lastSentCombatStats = newSnapshot;
-        hasLastSentCombatStats = true;
-        syncPlayerStats.SendCombatStats(newSnapshot);
-        combatStatsSendPending = false;
-    }
-
-    private static bool IsDifferent(CombatStatsSnapshot a, CombatStatsSnapshot b)
-    {
-        const float eps = 0.0001f;
-        return Mathf.Abs(a.attackSpeed - b.attackSpeed) > eps ||
-               Mathf.Abs(a.attackDamage - b.attackDamage) > eps ||
-               Mathf.Abs(a.attackRange - b.attackRange) > eps ||
-               Mathf.Abs(a.penetration - b.penetration) > eps ||
-               Mathf.Abs(a.integrity - b.integrity) > eps ||
-               Mathf.Abs(a.damageReduction - b.damageReduction) > eps ||
-               Mathf.Abs(a.statusResistance - b.statusResistance) > eps ||
-               Mathf.Abs(a.criticalChance - b.criticalChance) > eps ||
-               Mathf.Abs(a.criticalDamage - b.criticalDamage) > eps ||
-               Mathf.Abs(a.afflictionChance - b.afflictionChance) > eps ||
-               Mathf.Abs(a.afflictionDamage - b.afflictionDamage) > eps ||
-               Mathf.Abs(a.etherealChance - b.etherealChance) > eps ||
-               Mathf.Abs(a.etherealDamage - b.etherealDamage) > eps ||
-               Mathf.Abs(a.demonicChance - b.demonicChance) > eps ||
-               Mathf.Abs(a.demonicDamage - b.demonicDamage) > eps ||
-               Mathf.Abs(a.inevitableChance - b.inevitableChance) > eps ||
-               Mathf.Abs(a.inevitableDamage - b.inevitableDamage) > eps ||
-               Mathf.Abs(a.moveSpeed - b.moveSpeed) > eps;
     }
 
     private void CheckForMouseInput()
@@ -335,10 +247,7 @@ public class NetworkedDomainController : MonoBehaviour
 
             if (NavMesh.SamplePosition(navMeshPoint, out NavMeshHit navHit, 10f, NavMesh.AllAreas))
                 agent.SetDestination(navHit.position);
-            // else
-            //     Debug.Log("[NetworkedDomainController] Failed to find a valid point on the NavMesh near the clicked location.");
         }
-        // Debug.Log("Raycast did not hit the BaseTerrain layer.");
     }
 
     /// <summary>Returns this player's current HP for aggro/target checks (e.g. subdomain retaliation).</summary>
@@ -355,6 +264,8 @@ public class NetworkedDomainController : MonoBehaviour
         if (networkIdentity != null && !NetworkServer.active)
             return;
         if (playerStatsManager == null) return;
+
+        float damageMagnitude = Mathf.Abs(hpDamage) + Mathf.Abs(shieldDamage);
 
         PlayerStats playerStats = playerStatsManager.playerStats;
         lastAttackedTime = Time.time;
@@ -381,6 +292,8 @@ public class NetworkedDomainController : MonoBehaviour
         {
             syncPlayerStats.ServerSetCurrentHP(playerStats.currentHP);
             syncPlayerStats.ServerSetCurrentShield(playerStats.currentShield);
+            if (NetworkServer.active && damageMagnitude > 0.0001f)
+                syncPlayerStats.ServerRegisterCombatActivity();
         }
         if (playerHealthUi != null && syncPlayerStats == null)
         {
@@ -443,13 +356,10 @@ public class NetworkedDomainController : MonoBehaviour
         {
             MapService.ApplyMapBuffs(gameObject);
             mapBuffsApplied = true;
-
-            // Map buffs modify stats directly (reflection). Ensure combat snapshot is resynced on the local client.
-            RequestCombatStatsResyncIfLocal();
         }
     }
 
-    /// <summary>Server/attack handler: get combat stats for this player. Prefer client-sent snapshot so equipment and buffs are correct.</summary>
+    /// <summary>Combat snapshot: server uses authoritative <see cref="PlayerStatsManager"/>; client falls back to local stats for UI.</summary>
     public CombatStatsSnapshot GetCombatStatsSnapshot()
     {
         if (syncPlayerStats != null)
