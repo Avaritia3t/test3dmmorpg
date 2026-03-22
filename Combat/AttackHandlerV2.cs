@@ -1,6 +1,10 @@
 using UnityEngine;
 using System.Collections;
 
+/// <summary>
+/// <b>Legacy / offline-only</b> attack handler (used with <see cref="IAttackHandlerPool"/> / <see cref="AttackHandlerPoolV2"/> and <see cref="DomainControllerV3"/> / <see cref="SubdomainV2"/>).
+/// For Mirror + ParrelSync, use <see cref="NetworkedAttackHandlerController"/> + <see cref="INetworkedAttackHandlerPool"/> instead — do not duplicate gameplay fixes here unless you still ship offline builds.
+/// </summary>
 public class AttackHandlerV2 : MonoBehaviour
 {
     public float attackSpeed;
@@ -107,20 +111,29 @@ public class AttackHandlerV2 : MonoBehaviour
         }
         else
         {
-            SubdomainV2 subdomain = target.GetComponent<SubdomainV2>();
-            if (subdomain != null)
+            var netSub = target.GetComponent<NetworkedSubdomainController>();
+            if (netSub != null)
             {
-                subdomain.TakeDamage(hpDamage, shieldDamage, attacker);
+                netSub.TakeDamage(hpDamage, shieldDamage, attacker);
                 Debug.Log($"[AttackHandler] Applied {hpDamage} HP damage and {shieldDamage} shield damage to {target.name}");
             }
             else
             {
-                Debug.LogError("[AttackHandler] ApplyDamage failed: Target does not have a DomainControllerV3 or SubdomainV2 component");
+                SubdomainV2 subdomain = target.GetComponent<SubdomainV2>();
+                if (subdomain != null)
+                {
+                    subdomain.TakeDamage(hpDamage, shieldDamage, attacker);
+                    Debug.Log($"[AttackHandler] Applied {hpDamage} HP damage and {shieldDamage} shield damage to {target.name}");
+                }
+                else
+                {
+                    Debug.LogError("[AttackHandler] ApplyDamage failed: Target does not have DomainControllerV3, NetworkedSubdomainController, or SubdomainV2");
+                }
             }
         }
     }
 
-    private IEnumerator ApplyAffliction(GameObject target, float afflictionDamage, float duration)
+    private IEnumerator ApplyAffliction(GameObject target, GameObject attacker, float afflictionDamage, float duration)
     {
         float interval = 2f; // Apply damage every 2 seconds
         float elapsed = 0f;
@@ -134,14 +147,16 @@ public class AttackHandlerV2 : MonoBehaviour
             }
             else
             {
-                SubdomainV2 subdomain = target.GetComponent<SubdomainV2>();
-                if (subdomain != null)
-                {
-                    subdomain.TakeDamage(afflictionDamage, 0, gameObject);
-                }
+                var netSub = target.GetComponent<NetworkedSubdomainController>();
+                if (netSub != null)
+                    netSub.TakeDamage(afflictionDamage, 0, attacker);
                 else
                 {
-                    Debug.LogError("[AttackHandler] ApplyAffliction failed: Target does not have a DomainControllerV3 or SubdomainV2 component");
+                    SubdomainV2 subdomain = target.GetComponent<SubdomainV2>();
+                    if (subdomain != null)
+                        subdomain.TakeDamage(afflictionDamage, 0, attacker);
+                    else
+                        Debug.LogError("[AttackHandler] ApplyAffliction failed: Target does not have a known subdomain controller");
                 }
             }
 
@@ -150,7 +165,7 @@ public class AttackHandlerV2 : MonoBehaviour
         }
     }
 
-    private IEnumerator ApplyInevitableDamage(GameObject target, float inevitableDamage, float delay)
+    private IEnumerator ApplyInevitableDamage(GameObject target, GameObject attacker, float inevitableDamage, float delay)
     {
         yield return new WaitForSeconds(delay);
 
@@ -161,14 +176,16 @@ public class AttackHandlerV2 : MonoBehaviour
         }
         else
         {
-            SubdomainV2 subdomain = target.GetComponent<SubdomainV2>();
-            if (subdomain != null)
-            {
-                subdomain.TakeDamage(inevitableDamage, 0, gameObject);
-            }
+            var netSub = target.GetComponent<NetworkedSubdomainController>();
+            if (netSub != null)
+                netSub.TakeDamage(inevitableDamage, 0, attacker);
             else
             {
-                Debug.LogError("[AttackHandler] ApplyInevitableDamage failed: Target does not have a DomainControllerV3 or SubdomainV2 component");
+                SubdomainV2 subdomain = target.GetComponent<SubdomainV2>();
+                if (subdomain != null)
+                    subdomain.TakeDamage(inevitableDamage, 0, attacker);
+                else
+                    Debug.LogError("[AttackHandler] ApplyInevitableDamage failed: Target does not have a known subdomain controller");
             }
         }
         Debug.Log("[AttackHandler] Inevitable Damage Applied!");
@@ -190,7 +207,7 @@ public class AttackHandlerV2 : MonoBehaviour
         // Apply Affliction (Bleed) Effect
         if (Random.value < playerStats.afflictionChance)
         {
-            StartCoroutine(ApplyAffliction(target, playerStats.afflictionDamage, 10f)); // Example duration
+            StartCoroutine(ApplyAffliction(target, attacker, playerStats.afflictionDamage, 10f)); // Example duration
             Debug.Log("[AttackHandler] Affliction (Bleed) Effect Applied!");
         }
 
@@ -213,7 +230,7 @@ public class AttackHandlerV2 : MonoBehaviour
         // Apply Inevitable Damage
         if (Random.value < playerStats.inevitableChance)
         {
-            StartCoroutine(ApplyInevitableDamage(target, playerStats.inevitableDamage, 3f)); // Apply after 3 seconds
+            StartCoroutine(ApplyInevitableDamage(target, attacker, playerStats.inevitableDamage, 3f)); // Apply after 3 seconds
         }
     }
 

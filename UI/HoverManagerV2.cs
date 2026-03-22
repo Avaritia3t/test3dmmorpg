@@ -63,11 +63,10 @@ public class HoverManagerV2 : MonoBehaviour
         if (Physics.Raycast(ray, out hit, Mathf.Infinity, layerMask))
         {
             GameObject hitObject = hit.collider.gameObject;
-            SubdomainV2 subdomain = hitObject.GetComponent<SubdomainV2>();
-            if (subdomain != null)
-            {
-                HandleHoverObject(hitObject, subdomain);
-            }
+            var netSub = hitObject.GetComponent<NetworkedSubdomainController>();
+            var legacySub = hitObject.GetComponent<SubdomainV2>();
+            if (netSub != null || legacySub != null)
+                HandleHoverObject(hitObject, netSub, legacySub);
         }
         else
         {
@@ -76,15 +75,14 @@ public class HoverManagerV2 : MonoBehaviour
 
         if (isHovering && lastHoveredObject != null)
         {
-            SubdomainV2 subdomain = lastHoveredObject.GetComponent<SubdomainV2>();
-            if (subdomain != null)
-            {
-                DisplayStatsOnHover(subdomain);
-            }
+            var netSub = lastHoveredObject.GetComponent<NetworkedSubdomainController>();
+            var legacySub = lastHoveredObject.GetComponent<SubdomainV2>();
+            if (netSub != null || legacySub != null)
+                DisplayStatsOnHover(netSub, legacySub);
         }
     }
 
-    private void HandleHoverObject(GameObject hitObject, SubdomainV2 subdomain)
+    private void HandleHoverObject(GameObject hitObject, NetworkedSubdomainController netSub, SubdomainV2 legacySub)
     {
         if (lastHoveredObject == hitObject)
             return;
@@ -101,28 +99,41 @@ public class HoverManagerV2 : MonoBehaviour
         }
 
         isHovering = true;
-        DisplayStatsOnHover(subdomain);
+        DisplayStatsOnHover(netSub, legacySub);
     }
 
-    private void DisplayStatsOnHover(SubdomainV2 subdomain)
+    /// <summary>Mirror server-spawned subdomains use <see cref="NetworkedSubdomainController"/>; offline spheres use <see cref="SubdomainV2"/>.</summary>
+    private void DisplayStatsOnHover(NetworkedSubdomainController netSub, SubdomainV2 legacySub)
     {
         if (uiElement == null || subdomainText == null)
             return;
 
+        string name = netSub != null ? netSub.subdomainName : legacySub.subdomainName;
+        var type = netSub != null ? netSub.type : legacySub.type;
+        int level = netSub != null ? netSub.level : legacySub.level;
+        object state = netSub != null ? (object)netSub.CurrentState : legacySub.CurrentState;
+        bool generating = netSub != null ? netSub.IsGeneratingItemsAndResources : legacySub.IsGeneratingItemsAndResources;
+        float curHp = netSub != null ? netSub.currentHP : legacySub.currentHP;
+        float maxHp = netSub != null ? netSub.SubdomainHP : legacySub.SubdomainHP;
+        float curSh = netSub != null ? netSub.currentShield : legacySub.currentShield;
+        float maxSh = netSub != null ? netSub.SubdomainShield : legacySub.SubdomainShield;
+        var resList = netSub != null ? netSub.resources : legacySub.resources;
+        var itemsList = netSub != null ? netSub.spawnedItems : legacySub.spawnedItems;
+
         var sb = new StringBuilder();
-        sb.AppendLine($"Name: {subdomain.subdomainName}");
-        sb.AppendLine($"Type: {subdomain.type}");
-        sb.AppendLine($"Level: {subdomain.level}");
-        sb.AppendLine($"State: {subdomain.CurrentState}");
-        sb.AppendLine($"Is Generating Items and Resources: {subdomain.IsGeneratingItemsAndResources}");
-        sb.AppendLine($"HP: {subdomain.currentHP} / {subdomain.SubdomainHP}");
-        sb.AppendLine($"Shield: {subdomain.currentShield} / {subdomain.SubdomainShield}");
+        sb.AppendLine($"Name: {name}");
+        sb.AppendLine($"Type: {type}");
+        sb.AppendLine($"Level: {level}");
+        sb.AppendLine($"State: {state}");
+        sb.AppendLine($"Is Generating Items and Resources: {generating}");
+        sb.AppendLine($"HP: {curHp} / {maxHp}");
+        sb.AppendLine($"Shield: {curSh} / {maxSh}");
         sb.AppendLine("Inventory:");
 
-        if (subdomain.resources.Count > 0)
+        if (resList != null && resList.Count > 0)
         {
             sb.AppendLine("Resources:");
-            foreach (var resource in subdomain.resources)
+            foreach (var resource in resList)
             {
                 sb.AppendLine($"- {resource.type}: {resource.quantity} ({resource.grade})");
             }
@@ -132,10 +143,10 @@ public class HoverManagerV2 : MonoBehaviour
             sb.AppendLine("No resources in inventory.");
         }
 
-        if (subdomain.spawnedItems.Count > 0)
+        if (itemsList != null && itemsList.Count > 0)
         {
             sb.AppendLine("Items:");
-            foreach (var item in subdomain.spawnedItems)
+            foreach (var item in itemsList)
             {
                 sb.AppendLine($"- {item.itemName} ({item.itemRarity})");
                 foreach (var stat in item.stats)

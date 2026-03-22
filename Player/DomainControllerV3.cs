@@ -3,6 +3,9 @@ using UnityEngine;
 using UnityEngine.AI;
 using static UnityEngine.GraphicsBuffer;
 
+/// <summary>
+/// <b>Legacy / offline player controller</b> (non-Mirror). Networked games use <see cref="NetworkedDomainController"/> + <see cref="NetworkedPlayerCombatHelperController"/>.
+/// </summary>
 public class DomainControllerV3 : MonoBehaviour
 {
     private NavMeshAgent agent;
@@ -130,7 +133,10 @@ public class DomainControllerV3 : MonoBehaviour
             return;
         }
 
-        if (selectedTarget.GetComponent<SubdomainV2>()?.currentHP <= 0)
+        var netSub = selectedTarget.GetComponent<NetworkedSubdomainController>();
+        var legacySub = selectedTarget.GetComponent<SubdomainV2>();
+        float targetHp = netSub != null ? netSub.currentHP : (legacySub != null ? legacySub.currentHP : 1f);
+        if (targetHp <= 0)
         {
             Debug.Log("[AutoAttackInRange] Target HP is zero. Stopping attack.");
             isAttacking = false;

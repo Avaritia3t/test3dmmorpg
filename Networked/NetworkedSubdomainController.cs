@@ -7,6 +7,7 @@ using Mirror;
 /// <summary>
 /// Server-authoritative subdomain: state machine, combat, loot. Uses SubdomainV2Type/SubdomainState from World/SubdomainV2.cs.
 /// Required: on subdomain prefab (server-spawned), with NetworkIdentity, SyncSubdomainState. Optional: SubdomainItemGenerator, npcstatbarui for UI.
+/// Loot/XP: routes via <see cref="INetworkedLootService"/> / <see cref="IReceiveLoot"/> to the killer's connection — no global <see cref="IInventoryService"/> fallback.
 /// </summary>
 [System.Serializable]
 public class NetworkedSubdomainController : MonoBehaviour
@@ -53,15 +54,11 @@ public class NetworkedSubdomainController : MonoBehaviour
     private bool isGeneratingItemsAndResources;
     private bool deathHandled;
 
-    private IInventoryService inventoryService;
     private IDropRulesService dropRulesService;
     private INetworkedAttackHandlerPool networkedAttackHandlerPool;
-    private IPlayerStatsService playerStatsService;
     private INetworkedLootService networkedLootService;
-    private IInventoryService InventoryService => inventoryService ??= GameBootstrap.Locator?.Get<IInventoryService>();
     private IDropRulesService DropRulesService => dropRulesService ??= GameBootstrap.Locator?.Get<IDropRulesService>();
     private INetworkedAttackHandlerPool AttackHandlerPool => networkedAttackHandlerPool ??= GameBootstrap.Locator?.Get<INetworkedAttackHandlerPool>();
-    private IPlayerStatsService PlayerStatsService => playerStatsService ??= GameBootstrap.Locator?.Get<IPlayerStatsService>();
     private INetworkedLootService NetworkedLootService => networkedLootService ??= GameBootstrap.Locator?.Get<INetworkedLootService>();
 
     private SubdomainItemGenerator itemGenerator;
@@ -556,30 +553,21 @@ public class NetworkedSubdomainController : MonoBehaviour
             }
         }
 
-        if (InventoryService == null) return;
-        foreach (var resource in resources)
-        {
-            InventoryService.AddResource(resource);
-            resource.quantity = 0;
-        }
-        if (PlayerStatsService != null)
-            PlayerStatsService.AddExperience(CalculateExpReward());
+        // Per-player inventory is on the killer's connection (IReceiveLoot / NetworkedLootService). Do not fall back to
+        // GameBootstrap.Locator IInventoryService — that was host-only / wrong for remote clients and ParrelSync.
+        LogLootRoutingFailure();
+    }
 
-        if (spawnedItems == null) return;
-        List<Item> itemsToRemove = new List<Item>();
-        foreach (var item in spawnedItems)
-        {
-            InventoryService.AddItem(item);
-            itemsToRemove.Add(item);
-        }
-        foreach (var item in itemsToRemove)
-            spawnedItems.Remove(item);
-
-        // Debug.Log("Logging Player inventory post-transfer.");
-        // InventoryManager.Instance.LogPlayerInventory();
-
-        // Optionally log the inventory state
-        // LogInventory(); // Log the state of the inventory after transfer
+    private void LogLootRoutingFailure()
+    {
+        int rCount = resources?.Count ?? 0;
+        int iCount = spawnedItems?.Count ?? 0;
+        int xp = CalculateExpReward();
+        string attackerName = lastAttacker != null ? lastAttacker.name : "null";
+        Debug.LogWarning(
+            $"[NetworkedSubdomainController] Loot/XP not delivered for '{subdomainName}': no valid killer connection or missing IReceiveLoot on player. " +
+            $"Resources={rCount}, items={iCount}, XP={xp}, lastAttacker={attackerName}. " +
+            "Ensure the attacker is the player with NetworkIdentity, NetworkedPlayerLootReceiver + NetworkedPlayerInventory, and INetworkedLootService is registered.");
     }
 
     private int CalculateExpReward()

@@ -12,7 +12,7 @@ public class TerrainUtils : MonoBehaviour
     private List<Vector3> subdomainCenters = new List<Vector3>(); // To store centers of existing subdomains
     public GameObject npcStatCanvasPrefab;
 
-    [Tooltip("When set and running as server, subdomains are spawned via Mirror (server authority). Leave empty for local/single-player SubdomainV2 creation.")]
+    [Tooltip("Assign a prefab with NetworkIdentity, NetworkedSubdomainController, SyncSubdomainState (Mirror server spawn). Leave empty for local single-player SubdomainV2 spheres only.")]
     public GameObject networkedSubdomainPrefab;
 
     private int npcCounter = 1; // Counter for naming NPCs sequentially

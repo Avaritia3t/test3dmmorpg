@@ -3,9 +3,9 @@ using Mirror;
 using UnityEngine;
 
 /// <summary>
-/// Networked attack handler: only NetworkedDomainController and NetworkedSubdomainController as attacker/target.
-/// Use with INetworkedAttackHandlerPool. Leave Combat/AttackHandlerV2 unchanged for the local stack.
-/// Required: on pooled attack-handler prefab (instantiated by NetworkedAttackHandlerPool). No Mirror component required.
+/// <b>Primary combat path for Mirror / ParrelSync:</b> damage only to <see cref="NetworkedDomainController"/> / <see cref="NetworkedSubdomainController"/>.
+/// Pooled via <see cref="INetworkedAttackHandlerPool"/> — used by <see cref="NetworkedPlayerCombatHelperController"/> and <see cref="NetworkedSubdomainController"/>.
+/// (Legacy offline stack uses <see cref="AttackHandlerV2"/> + <see cref="IAttackHandlerPool"/>; not used when the networked player prefab is active.)
 /// </summary>
 public class NetworkedAttackHandlerController : MonoBehaviour
 {
@@ -114,7 +114,7 @@ public class NetworkedAttackHandlerController : MonoBehaviour
         sync?.ServerRegisterCombatActivity();
     }
 
-    private IEnumerator ApplyAffliction(GameObject target, float afflictionDamage, float duration)
+    private IEnumerator ApplyAffliction(GameObject target, GameObject attacker, float afflictionDamage, float duration)
     {
         float interval = 2f;
         float elapsed = 0f;
@@ -125,7 +125,7 @@ public class NetworkedAttackHandlerController : MonoBehaviour
             if (networkedDomain != null)
                 networkedDomain.TakeDamage(afflictionDamage, 0);
             else if (target.GetComponent<NetworkedSubdomainController>() != null)
-                target.GetComponent<NetworkedSubdomainController>().TakeDamage(afflictionDamage, 0, gameObject);
+                target.GetComponent<NetworkedSubdomainController>().TakeDamage(afflictionDamage, 0, attacker);
             else
                 Debug.LogError("[NetworkedAttackHandlerController] ApplyAffliction failed: Target does not have a known controller");
 
@@ -134,7 +134,7 @@ public class NetworkedAttackHandlerController : MonoBehaviour
         }
     }
 
-    private IEnumerator ApplyInevitableDamage(GameObject target, float inevitableDamage, float delay)
+    private IEnumerator ApplyInevitableDamage(GameObject target, GameObject attacker, float inevitableDamage, float delay)
     {
         yield return new WaitForSeconds(delay);
 
@@ -142,7 +142,7 @@ public class NetworkedAttackHandlerController : MonoBehaviour
         if (networkedDomain != null)
             networkedDomain.TakeDamage(inevitableDamage, 0);
         else if (target.GetComponent<NetworkedSubdomainController>() != null)
-            target.GetComponent<NetworkedSubdomainController>().TakeDamage(inevitableDamage, 0, gameObject);
+            target.GetComponent<NetworkedSubdomainController>().TakeDamage(inevitableDamage, 0, attacker);
         else
             Debug.LogError("[NetworkedAttackHandlerController] ApplyInevitableDamage failed: Target does not have a known controller");
         // Debug.Log("[NetworkedAttackHandlerController] Inevitable Damage Applied!");
@@ -183,7 +183,7 @@ public class NetworkedAttackHandlerController : MonoBehaviour
             else
             {
                 // Fallback for targets that don't have NetworkedStatusEffectController yet.
-                StartCoroutine(ApplyAffliction(target, attackerStats.afflictionDamage, 10f));
+                StartCoroutine(ApplyAffliction(target, attacker, attackerStats.afflictionDamage, 10f));
             }
         }
 
@@ -218,7 +218,7 @@ public class NetworkedAttackHandlerController : MonoBehaviour
             else
             {
                 // Fallback for targets that don't have the new controller yet.
-                StartCoroutine(ApplyInevitableDamage(target, attackerStats.inevitableDamage, 3f));
+                StartCoroutine(ApplyInevitableDamage(target, attacker, attackerStats.inevitableDamage, 3f));
             }
         }
     }
