@@ -6,7 +6,8 @@ using Mirror;
 /// Local testing: ParrelSync clones + Mirror HUD / manual Host vs Client per instance.
 /// Required: one instance in scene (often on same GameObject as NetworkedGameBootstrap). Assign player prefab in inspector.
 /// Player prefab must have: NetworkIdentity, SyncPlayerStats, NetworkedDomainController, NavMeshAgent, PlayerStatsManager,
-/// <see cref="NetworkedPlayerInventory"/> (per-player bag + replication), and <see cref="NetworkedPlayerLootReceiver"/> (server loot routing).
+/// <see cref="NetworkedPlayerInventory"/>, <see cref="NetworkedPlayerEquipment"/> (server-authoritative equip), <see cref="NetworkedPlayerLootReceiver"/>,
+/// <see cref="NetworkedPlayerCombatHelperController"/>, <see cref="NetworkedLocalPlayerServiceRegistrar"/>.
 /// Optional: NetworkTransform (Mirror) for movement sync on the player.
 /// Optional: NetworkedAbilityExecutor for keyboard ability intents (assign AbilityDefinitionSO assets).
 /// </summary>

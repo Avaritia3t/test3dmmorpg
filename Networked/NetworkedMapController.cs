@@ -12,9 +12,6 @@ public class NetworkedMapController : MonoBehaviour, IMapService
 
     public MapDataV2 currentMap;
 
-    private IPlayerStatsService _playerStatsService;
-    private IPlayerStatsService PlayerStatsService => _playerStatsService ??= GameBootstrap.Locator?.Get<IPlayerStatsService>();
-
     private void Awake()
     {
         DontDestroyOnLoad(gameObject);
@@ -61,15 +58,17 @@ public class NetworkedMapController : MonoBehaviour, IMapService
 
     private void ApplyBuff(NetworkedDomainController playerController, BuffV2 buff)
     {
-        if (PlayerStatsService == null) return;
-        var statProperties = PlayerStatsService.GetStatProperties();
+        // Must use the spawned player's PlayerStatsManager — not GameBootstrap.Locator (host-only / wrong on dedicated server).
+        var psm = playerController.playerStatsManager;
+        if (psm == null) return;
+        var statProperties = psm.GetStatProperties();
 
         if (statProperties.TryGetValue(buff.StatName, out var property))
         {
-            float currentValue = (float)property.GetValue(playerController.playerStatsManager.playerStats);
-            property.SetValue(playerController.playerStatsManager.playerStats, currentValue * buff.ModifierValue);
+            float currentValue = (float)property.GetValue(psm.playerStats);
+            property.SetValue(psm.playerStats, currentValue * buff.ModifierValue);
 
-            Debug.Log($"Applied {buff.StatName} {buff.Type} to {playerController.gameObject.name}: {buff.StatName} now {property.GetValue(playerController.playerStatsManager.playerStats)}");
+            Debug.Log($"Applied {buff.StatName} {buff.Type} to {playerController.gameObject.name}: {buff.StatName} now {property.GetValue(psm.playerStats)}");
         }
         else
         {

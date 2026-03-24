@@ -4,6 +4,7 @@ using Mirror;
 /// <summary>
 /// Handles player combat: target and attack from client Commands; attack execution server-only.
 /// Required: on player prefab, same GameObject as NetworkIdentity and NetworkedDomainController.
+/// <para>Attack cadence uses the same <see cref="CombatStatsSnapshot"/> source as <see cref="NetworkedAttackHandlerController"/> (server <see cref="PlayerStatsManager"/>).</para>
 /// </summary>
 public class NetworkedPlayerCombatHelperController : NetworkBehaviour
 {
@@ -47,15 +48,22 @@ public class NetworkedPlayerCombatHelperController : NetworkBehaviour
     }
 
     /// <summary>
-    /// Toggles attacking. Client sends new state to server via Command.
+    /// Toggles attacking. Server flips <see cref="isAttacking"/> (SyncVar) — no optimistic client flip.
     /// </summary>
     public void ToggleAttacking()
     {
-        isAttacking = !isAttacking;
-        if (isClient)
-            CmdSetAttacking(isAttacking);
-        else if (!NetworkServer.active)
-            ServerStopAttack();
+        if (!NetworkClient.active && !NetworkServer.active)
+        {
+            isAttacking = !isAttacking;
+            if (!isAttacking)
+                ServerStopAttack();
+            return;
+        }
+
+        if (!isLocalPlayer)
+            return;
+
+        CmdToggleAttacking();
     }
 
     [Command]
@@ -65,10 +73,10 @@ public class NetworkedPlayerCombatHelperController : NetworkBehaviour
     }
 
     [Command]
-    private void CmdSetAttacking(bool value)
+    private void CmdToggleAttacking()
     {
-        isAttacking = value;
-        if (!value)
+        isAttacking = !isAttacking;
+        if (!isAttacking)
             ServerStopAttack();
     }
 
@@ -122,9 +130,22 @@ public class NetworkedPlayerCombatHelperController : NetworkBehaviour
 
     private bool CheckAttackInterval()
     {
-        var stats = GetComponent<PlayerStatsManager>()?.playerStats;
-        if (stats == null) return false;
-        float attackSpeed = stats.attackSpeed;
+        // Server-only path (Tick already skips pure clients). Match NetworkedAttackHandlerController / GetCombatStatsSnapshot.
+        float attackSpeed = 0f;
+        var domain = GetComponent<NetworkedDomainController>();
+        if (domain != null)
+        {
+            var snap = domain.GetCombatStatsSnapshot();
+            if (snap.IsValid && snap.attackSpeed > 0f)
+                attackSpeed = snap.attackSpeed;
+        }
+        if (attackSpeed <= 0f)
+        {
+            var stats = GetComponent<PlayerStatsManager>()?.playerStats;
+            if (stats == null || stats.attackSpeed <= 0f) return false;
+            attackSpeed = stats.attackSpeed;
+        }
+
         float waitTime = 151.67f / attackSpeed - 0.0167f;
         return Time.time - lastAttackTime >= waitTime;
     }

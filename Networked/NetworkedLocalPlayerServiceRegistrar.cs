@@ -2,8 +2,8 @@ using Mirror;
 using UnityEngine;
 
 /// <summary>
-/// Registers this player's <see cref="PlayerStatsManager"/>, <see cref="PlayerEquipmentManager"/>, and <see cref="NetworkedPlayerInventory"/> on <see cref="GameBootstrap.Locator"/> for the <b>local player only</b>.
-/// (<see cref="NetworkedPlayerEquipment"/> is optional and currently compiled out — see that file when enabling server-authoritative equip.)
+/// Registers this player's services on <see cref="GameBootstrap.Locator"/> for the <b>local player only</b>.
+/// Prefers <see cref="NetworkedPlayerEquipment"/> over <see cref="PlayerEquipmentManager"/> for <see cref="IPlayerEquipmentService"/> when both exist.
 /// Add to the player prefab next to <see cref="NetworkIdentity"/>.
 /// </summary>
 [RequireComponent(typeof(NetworkIdentity))]
@@ -11,6 +11,7 @@ public class NetworkedLocalPlayerServiceRegistrar : MonoBehaviour
 {
     private bool registeredStats;
     private bool registeredEquipment;
+    private bool registeredInventory;
     private bool didRegister;
 
     private void Start()
@@ -33,11 +34,20 @@ public class NetworkedLocalPlayerServiceRegistrar : MonoBehaviour
             registeredStats = true;
         }
 
-        var equipment = GetComponent<PlayerEquipmentManager>();
-        if (equipment != null)
+        var netEquipment = GetComponent<NetworkedPlayerEquipment>();
+        if (netEquipment != null)
         {
-            locator.Register<IPlayerEquipmentService>(equipment);
+            locator.Register<IPlayerEquipmentService>(netEquipment);
             registeredEquipment = true;
+        }
+        else
+        {
+            var equipment = GetComponent<PlayerEquipmentManager>();
+            if (equipment != null)
+            {
+                locator.Register<IPlayerEquipmentService>(equipment);
+                registeredEquipment = true;
+            }
         }
 
         var inv = GetComponent<NetworkedPlayerInventory>();

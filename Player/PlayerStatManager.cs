@@ -2,6 +2,17 @@ using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
+/// <summary>
+/// Authoritative <see cref="PlayerStats"/> for this player instance (one per player prefab).
+/// <para><b>Mirror:</b> Combat (attack interval, damage rolls, crits) runs on the <b>server</b> and reads this component on the
+/// server-owned player object. Routes that mutate stats must run on that same server instance:</para>
+/// <list type="bullet">
+/// <item><b>Spawn / map:</b> <see cref="GameNetworkManager.OnServerAddPlayer"/> → <see cref="NetworkedDomainController.ApplyMapBuffs"/> → <see cref="NetworkedMapController.ApplyMapBuffs"/> (server).</item>
+/// <item><b>Loot XP:</b> <see cref="NetworkedPlayerLootReceiver.AddExperience"/> (server only).</item>
+/// <item><b>Equipment:</b> <see cref="NetworkedPlayerEquipment"/> (Commands) → <see cref="PlayerEquipmentManager"/> / <see cref="IPlayerStatsService.ApplyEquipmentStatModifiers"/> on the server.</item>
+/// <item><b>Damage / regen:</b> <see cref="NetworkedDomainController.TakeDamage"/> and regen coroutine (server).</item>
+/// </list>
+/// </summary>
 public class PlayerStatsManager : MonoBehaviour, IPlayerStatsService
 {
     public PlayerStats playerStats;

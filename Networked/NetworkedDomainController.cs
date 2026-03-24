@@ -134,8 +134,8 @@ public class NetworkedDomainController : MonoBehaviour
         }
         else
         {
-            // Client: use server-synced value only (no client-side override)
-            float speed = syncPlayerStats != null && syncPlayerStats.syncMoveSpeed > 0f
+            // Client: use server-synced value only (no client-side override). Must allow 0 (root / full slow).
+            float speed = syncPlayerStats != null
                 ? syncPlayerStats.syncMoveSpeed
                 : moveSpeed;
             agent.speed = speed;
@@ -309,9 +309,10 @@ public class NetworkedDomainController : MonoBehaviour
 
     private IEnumerator Regenerate()
     {
-        if (PlayerStatsService == null) yield break;
+        // Use this instance's stats — not GameBootstrap.Locator (wrong player / null on dedicated server).
+        if (playerStatsManager == null) yield break;
 
-        PlayerStats playerStats = PlayerStatsService.playerStats;
+        PlayerStats playerStats = playerStatsManager.playerStats;
         yield return new WaitForSeconds(playerStats.combatRegenDelay);
 
         while (playerStats.currentHP < playerStats.baseHP || playerStats.currentShield < playerStats.baseShield)

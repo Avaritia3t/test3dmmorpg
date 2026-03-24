@@ -1,25 +1,23 @@
-// Server-authoritative equipment (Mirror Commands). Disabled for Mirror + ParrelSync prototyping:
-// register PlayerEquipmentManager on IPlayerEquipmentService (direct equip on host/client).
-// To re-enable: change #if false to #if true, prefer registering NetworkedPlayerEquipment in NetworkedLocalPlayerServiceRegistrar.
-
-#if false
 using Mirror;
 using UnityEngine;
 
 /// <summary>
 /// Server-authoritative equipment: local player sends <see cref="Command"/>s; server applies
-/// <see cref="PlayerEquipmentManager"/> and mutates <see cref="IInventoryService"/> on the server.
-/// Host uses the same InventoryManager instance as the client UI; remote clients need inventory sync (future work).
+/// <see cref="PlayerEquipmentManager"/> and mutates <see cref="NetworkedPlayerInventory"/> on this player (not global locator).
+/// Register as <see cref="IPlayerEquipmentService"/> via <see cref="NetworkedLocalPlayerServiceRegistrar"/> for the local player.
 /// </summary>
 [RequireComponent(typeof(NetworkIdentity))]
 [RequireComponent(typeof(PlayerEquipmentManager))]
+[RequireComponent(typeof(NetworkedPlayerInventory))]
 public class NetworkedPlayerEquipment : NetworkBehaviour, IPlayerEquipmentService
 {
     private PlayerEquipmentManager _equipment;
+    private NetworkedPlayerInventory _inventory;
 
     private void Awake()
     {
         _equipment = GetComponent<PlayerEquipmentManager>();
+        _inventory = GetComponent<NetworkedPlayerInventory>();
     }
 
     public bool EquipItem(Item item)
@@ -60,14 +58,15 @@ public class NetworkedPlayerEquipment : NetworkBehaviour, IPlayerEquipmentServic
     [Command]
     private void CmdEquipItem(string itemName, ItemType itemType, string subtype, int level)
     {
-        var inv = GameBootstrap.Locator?.Get<IInventoryService>();
-        if (inv == null)
+        if (_inventory == null)
+            _inventory = GetComponent<NetworkedPlayerInventory>();
+        if (_inventory == null)
         {
-            Debug.LogWarning("[NetworkedPlayerEquipment] Server has no IInventoryService (locator).");
+            Debug.LogWarning("[NetworkedPlayerEquipment] NetworkedPlayerInventory missing on player.");
             return;
         }
 
-        Item serverItem = FindItemInList(inv.GetItems(), itemName, itemType, subtype, level);
+        Item serverItem = FindItemInList(_inventory.GetItems(), itemName, itemType, subtype, level);
         if (serverItem == null)
         {
             Debug.LogWarning($"[NetworkedPlayerEquipment] Item not in server inventory: {itemName}");
@@ -77,13 +76,14 @@ public class NetworkedPlayerEquipment : NetworkBehaviour, IPlayerEquipmentServic
         if (!_equipment.EquipItem(serverItem))
             return;
 
-        inv.RemoveItem(serverItem);
+        _inventory.RemoveItem(serverItem);
     }
 
     [Command]
     private void CmdUnequipItem(string itemName, ItemType itemType, string subtype, int level)
     {
-        var inv = GameBootstrap.Locator?.Get<IInventoryService>();
+        if (_inventory == null)
+            _inventory = GetComponent<NetworkedPlayerInventory>();
         Item eq = _equipment.FindEquippedItemMatching(itemName, itemType, subtype, level);
         if (eq == null)
             return;
@@ -91,7 +91,7 @@ public class NetworkedPlayerEquipment : NetworkBehaviour, IPlayerEquipmentServic
         if (!_equipment.UnequipItem(eq))
             return;
 
-        inv?.AddItem(eq);
+        _inventory?.AddItem(eq);
     }
 
     private static Item FindItemInList(System.Collections.Generic.List<Item> items, string itemName, ItemType itemType, string subtype, int level)
@@ -109,4 +109,3 @@ public class NetworkedPlayerEquipment : NetworkBehaviour, IPlayerEquipmentServic
         return null;
     }
 }
-#endif
