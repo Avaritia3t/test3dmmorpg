@@ -10,6 +10,6 @@ public static class PlayerStartup
     public static void Configure(ServiceLocator locator)
     {
         // IPlayerStatsService / IPlayerEquipmentService are registered by the local player's
-        // NetworkedLocalPlayerServiceRegistrar when the local NetworkIdentity spawns (not FindObjectOfType).
+        // NetworkedLocalPlayerServiceRegistrar when the local NetworkIdentity spawns (not FindFirstObjectByType).
     }
 }

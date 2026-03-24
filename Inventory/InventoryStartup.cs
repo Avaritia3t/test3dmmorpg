@@ -10,10 +10,10 @@ public static class InventoryStartup
     public static void Configure(ServiceLocator locator)
     {
         // Player prefab is not spawned yet — do not register a global InventoryManager when using Mirror.
-        if (Object.FindObjectOfType<NetworkManager>() != null)
+        if (Object.FindFirstObjectByType<NetworkManager>() != null)
             return;
 
-        var inventory = Object.FindObjectOfType<InventoryManager>();
+        var inventory = Object.FindFirstObjectByType<InventoryManager>();
         if (inventory != null)
             locator.Register<IInventoryService>(inventory);
     }

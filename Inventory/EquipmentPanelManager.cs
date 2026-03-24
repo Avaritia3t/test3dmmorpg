@@ -69,7 +69,7 @@ public class EquipmentPanelManager : MonoBehaviour
             }
         }
 
-        itemSubtypeMenuManager = FindObjectOfType<ItemSubtypeMenuManager>();
+        itemSubtypeMenuManager = FindFirstObjectByType<ItemSubtypeMenuManager>();
         UpdatePlayerStatsReadout();
     }
 
@@ -235,7 +235,7 @@ public class EquipmentPanelManager : MonoBehaviour
 
     public void UpdateUIOnRightClick(GameObject slot, Item item)
     {
-        itemSubtypeMenuManager = FindObjectOfType<ItemSubtypeMenuManager>();
+        itemSubtypeMenuManager = FindFirstObjectByType<ItemSubtypeMenuManager>();
         if (itemSubtypeMenuManager == null)
         {
             Debug.LogError("ItemSubtypeMenuManager is not found!");

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Idempotent DB seeding script for the game persistence schema.
-Uses SQLite. If the database file and tables already exist, does nothing.
-Otherwise creates: accounts, playerstats, playerinventory.
-Run from project root: python Scripts/seed_db.py
+Deprecated for this project: persistence is implemented in Unity via
+Network/DBConnectionManager.cs (SQLite + PlayerStats columns + equipmentSlotsJson).
+
+This script is not used by the game client. Kept only as an old reference.
 """
 
 import os

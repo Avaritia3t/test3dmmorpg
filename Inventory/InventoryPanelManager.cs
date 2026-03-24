@@ -52,7 +52,7 @@ public class InventoryPanelManager : MonoBehaviour
         }
 
         // Dynamically find and assign the ItemSubtypeMenuManager instance
-        itemSubtypeMenuManager = FindObjectOfType<ItemSubtypeMenuManager>();
+        itemSubtypeMenuManager = FindFirstObjectByType<ItemSubtypeMenuManager>();
         if (itemSubtypeMenuManager == null)
         {
             Debug.LogError("ItemSubtypeMenuManager instance not found.");

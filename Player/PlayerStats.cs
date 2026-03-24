@@ -5,6 +5,12 @@ public class PlayerStats
     // This class is for back-end logical storage and manipulation of player statistics
     public string faction { get; set; }
 
+    /// <summary>Setup flow: set when the player confirms class (local profile DB; server auth is separate).</summary>
+    public bool hasSelectedClass { get; set; }
+
+    /// <summary>Setup flow: set when the player confirms faction.</summary>
+    public bool hasSelectedFaction { get; set; }
+
     public string className { get; set; } = "";
     public float baseHP { get; set; } = 1000f;
     public float currentHP { get; set; }
@@ -65,6 +71,8 @@ public class PlayerStats
 
         faction = "";
         className = "";
+        hasSelectedClass = false;
+        hasSelectedFaction = false;
 
         // Initialize additional stats with default values
         criticalChance = 0f;

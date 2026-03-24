@@ -48,6 +48,12 @@ public class ItemStat
 [System.Serializable]
 public class Item
 {
+    /// <summary>Required for JSON persistence (e.g. SQLite equipment snapshot).</summary>
+    public Item()
+    {
+        stats = new List<ItemStat>();
+    }
+
     public string itemName;
     public ItemType itemType;
     public string subtype; // Subtype information

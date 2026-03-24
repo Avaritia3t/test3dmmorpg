@@ -14,6 +14,12 @@ public enum EquipmentSlotType
 [System.Serializable]
 public class EquipmentSlot
 {
+    /// <summary>Required for JSON persistence of equipment layout.</summary>
+    public EquipmentSlot()
+    {
+        equippedItems = new List<Item>();
+    }
+
     public EquipmentSlotType slotType;
     public int maxSlots;
     public int unlockedSlots;
