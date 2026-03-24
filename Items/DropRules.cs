@@ -18,7 +18,9 @@ public class DropRule
 
 public class DropRules : MonoBehaviour, IDropRulesService
 {
-    public List<DropRule> dropRules;
+    private List<DropRule> _dropRules;
+
+    public List<DropRule> dropRules => _dropRules;
 
     private void Awake()
     {
@@ -28,7 +30,7 @@ public class DropRules : MonoBehaviour, IDropRulesService
 
     private void InitializeDropRules()
     {
-        dropRules = new List<DropRule>
+        _dropRules = new List<DropRule>
         {
             new DropRule(SubdomainV2Type.Badlands, new List<ResourceType> { ResourceType.Lumber, ResourceType.Stone, ResourceType.Sand, ResourceType.Food }, new List<ItemType>()),
             new DropRule(SubdomainV2Type.Hovel, new List<ResourceType> { ResourceType.Lumber, ResourceType.Stone, ResourceType.Sand, ResourceType.Food, ResourceType.Textiles }, new List<ItemType>()),
@@ -47,7 +49,8 @@ public class DropRules : MonoBehaviour, IDropRulesService
     private static IDropRulesService _dropRulesService;
     private static IDropRulesService DropRulesService => _dropRulesService ??= GameBootstrap.Locator?.Get<IDropRulesService>();
 
-    public static Item GenerateEmptyItem(ItemType itemType)
+    /// <summary>Convenience entry when you have no <see cref="IDropRulesService"/> reference (uses locator).</summary>
+    public static Item GenerateEmptyItemViaLocator(ItemType itemType)
     {
         return DropRulesService?.GenerateEmptyItem(itemType);
     }

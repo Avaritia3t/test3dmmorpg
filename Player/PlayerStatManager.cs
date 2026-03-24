@@ -15,7 +15,7 @@ using UnityEngine;
 /// </summary>
 public class PlayerStatsManager : MonoBehaviour, IPlayerStatsService
 {
-    public PlayerStats playerStats;
+    public PlayerStats playerStats { get; private set; }
     private Dictionary<string, PropertyInfo> statProperties;
 
     /// <summary>

@@ -294,7 +294,7 @@ public class NetworkedPlayerInventory : NetworkBehaviour, IInventoryService
         {
             var p = InventoryNetConverters.ToPayload(item);
             if (p != null)
-                CmdAddItem(p);
+                CmdAddItem(JsonUtility.ToJson(p));
         }
     }
 
@@ -472,7 +472,7 @@ public class NetworkedPlayerInventory : NetworkBehaviour, IInventoryService
         {
             var p = InventoryNetConverters.ToPayload(item);
             if (p != null)
-                CmdEquipItem(p);
+                CmdEquipItem(JsonUtility.ToJson(p));
         }
     }
 
@@ -520,7 +520,7 @@ public class NetworkedPlayerInventory : NetworkBehaviour, IInventoryService
         {
             var p = InventoryNetConverters.ToPayload(item);
             if (p != null)
-                CmdUnequipItem(p);
+                CmdUnequipItem(JsonUtility.ToJson(p));
         }
     }
 

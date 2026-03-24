@@ -578,7 +578,7 @@ public class NetworkedSubdomainController : MonoBehaviour
 
     private SubdomainV2Type GenerateType()
     {
-        float randomValue = Random.value * 100; // Generate a random number between 0 and 100
+        float randomValue = UnityEngine.Random.value * 100; // Generate a random number between 0 and 100
         if (randomValue < 30) return SubdomainV2Type.Badlands;
         if (randomValue < 40) return SubdomainV2Type.Hovel;
         if (randomValue < 50) return SubdomainV2Type.Hearthstead;

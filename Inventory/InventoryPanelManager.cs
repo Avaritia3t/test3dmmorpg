@@ -171,7 +171,7 @@ public class InventoryPanelManager : MonoBehaviour
         }
         else if (System.Enum.TryParse(itemName, out phalanxType))
         {
-            int quantity = InventoryService.GetItemQuantity(ItemType.Phalanx, itemName);
+            int quantity = _inventoryService.GetItemQuantity(ItemType.Phalanx, itemName);
             content = $"{phalanxType}\nQuantity: {quantity}";
         }
         else if (System.Enum.TryParse(itemName, out artefactType))
@@ -181,8 +181,8 @@ public class InventoryPanelManager : MonoBehaviour
         }
         else if (System.Enum.TryParse(itemName, out runeType))
         {
-            int quantity = InventoryService.GetRuneQuantity(runeType);
-            float multiplier = InventoryService.GetRuneMultiplier(runeType);
+            int quantity = _inventoryService.GetRuneQuantity(runeType);
+            float multiplier = _inventoryService.GetRuneMultiplier(runeType);
             content = $"{runeType}\nQuantity: {quantity}\nDamage Multiplier: x{multiplier}";
         }
         else

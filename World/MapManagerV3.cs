@@ -6,7 +6,7 @@ public class MapManagerV3 : MonoBehaviour, IMapService
     [SerializeField]
     private AllMapsDataV2 allMapsData; // Assign in the editor
 
-    public MapDataV2 currentMap;
+    public MapDataV2 currentMap { get; private set; }
 
     private IPlayerStatsService _playerStatsService;
     private IPlayerStatsService PlayerStatsService => _playerStatsService ??= GameBootstrap.Locator?.Get<IPlayerStatsService>();

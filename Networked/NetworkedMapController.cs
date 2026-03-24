@@ -10,7 +10,7 @@ public class NetworkedMapController : MonoBehaviour, IMapService
     [SerializeField]
     private AllMapsDataV2 allMapsData; // Assign in the editor
 
-    public MapDataV2 currentMap;
+    public MapDataV2 currentMap { get; private set; }
 
     private void Awake()
     {

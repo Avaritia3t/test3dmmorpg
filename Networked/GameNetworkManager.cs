@@ -21,7 +21,8 @@ public class GameNetworkManager : NetworkManager
             return;
         }
 
-        Vector3 spawnPosition = GetStartPosition();
+        Transform startPoint = GetStartPosition();
+        Vector3 spawnPosition = startPoint != null ? startPoint.position : Vector3.zero;
         if (spawnPosition == Vector3.zero && GameBootstrap.Locator != null)
         {
             var mapService = GameBootstrap.Locator.Get<IMapService>();
